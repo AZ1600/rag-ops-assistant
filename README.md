@@ -4,6 +4,14 @@ An AI-powered operations assistant that combines **Retrieval-Augmented Generatio
 
 The assistant can answer questions from a curated operations knowledge base, expose retrieval as an MCP tool, route tool calls through LangGraph, and return grounded answers with source and evidence metadata.
 
+<p align="center">
+  <img
+    src="docs/images/architecture-diagram.png"
+    alt="RAG Ops Assistant Architecture"
+    width="1000"
+  >
+</p>
+
 ---
 
 ## Architecture
