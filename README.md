@@ -52,6 +52,45 @@ Amazon Bedrock / Nova
              v
      Answer + Sources + Evidence
 ```
+---
+
+## Demo Screenshots
+
+### Architecture Diagram
+
+The diagram below shows the end-to-end flow from the API request through LangGraph, Amazon Bedrock, MCP, and the RAG retrieval pipeline.
+
+<p align="center">
+  <img
+    src="docs/images/architecture-diagram.png"
+    alt="RAG Ops Assistant Architecture"
+    width="1000"
+  >
+</p>
+
+### Grounded API Query
+
+The `/ask` endpoint returns a grounded answer together with the source documents and retrieval evidence used to support the response.
+
+<p align="center">
+  <img
+    src="docs/images/grounded-query.png"
+    alt="Grounded API Query"
+    width="1000"
+  >
+</p>
+
+### MCP Tool Invocation Flow
+
+The terminal trace below shows LangGraph routing a knowledge-base question to Amazon Bedrock, Bedrock requesting the MCP tool, the MCP server executing `search_knowledge_base`, and the retrieved evidence being returned before the final model response.
+
+<p align="center">
+  <img
+    src="docs/images/mcp-flow-terminal.png"
+    alt="MCP Tool Invocation Flow"
+    width="1000"
+  >
+</p>
 
 ---
 
