@@ -1,0 +1,8 @@
+boto3==1.43.104
+fastapi==0.141.1
+langgraph==1.2.12
+mcp[cli]==2.2.0
+numpy==2.4.6
+pydantic==2.13.5
+sentence-transformers==6.1.0
+uvicorn==0.54.0
