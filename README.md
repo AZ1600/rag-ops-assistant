@@ -4,15 +4,6 @@ An AI-powered operations assistant that combines **Retrieval-Augmented Generatio
 
 The assistant can answer questions from a curated operations knowledge base, expose retrieval as an MCP tool, route tool calls through LangGraph, and return grounded answers with source and evidence metadata.
 
-<p align="center">
-  <img
-    src="docs/images/architecture-diagram.png"
-    alt="RAG Ops Assistant Architecture"
-    width="1000"
-  >
-</p>
-
----
 
 ## Architecture
 
@@ -463,6 +454,132 @@ The application returns:
 
 This response is enforced by LangGraph control flow rather than relying only on prompt instructions.
 
+---
+
+## Run with Docker
+
+The application can also run as a Docker container.
+
+The Docker image:
+
+- installs the Python dependencies
+- copies the application source and knowledge-base documents
+- generates the RAG index during the image build
+- starts the FastAPI application on port `8000`
+
+### Build the image
+
+```bash
+docker build -t rag-ops-assistant .
+```
+
+The build runs:
+
+```text
+install dependencies
+        ↓
+copy application
+        ↓
+python -m src.ingest
+        ↓
+generate RAG index
+        ↓
+create Docker image
+```
+
+### Run the container
+
+Amazon Bedrock still requires AWS credentials at runtime.
+
+The credentials are mounted read-only into the container rather than being stored inside the image.
+
+```bash
+docker run --rm \
+  -p 8000:8000 \
+  -e AWS_PROFILE=<your-aws-profile> \
+  -v "$HOME/.aws:/root/.aws:ro" \
+  rag-ops-assistant
+```
+
+If port `8000` is already in use locally, map another host port:
+
+```bash
+docker run --rm \
+  -p 8001:8000 \
+  -e AWS_PROFILE=<your-aws-profile> \
+  -v "$HOME/.aws:/root/.aws:ro" \
+  rag-ops-assistant
+```
+
+The API will then be available at:
+
+```text
+http://127.0.0.1:8001
+```
+
+### Test the container
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8001/health
+```
+
+Expected response:
+
+```json
+{
+  "status": "ok",
+  "service": "rag-ops-assistant"
+}
+```
+
+Grounded knowledge-base query:
+
+```bash
+curl -X POST http://127.0.0.1:8001/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"How does the VM securely access Blob Storage?"}'
+```
+
+A successful response contains:
+
+```text
+answer
+sources
+evidence
+```
+
+For an unsupported knowledge-base question, the LangGraph no-evidence guard returns:
+
+```json
+{
+  "answer": "The knowledge base does not contain sufficient information to answer that question.",
+  "sources": [],
+  "evidence": []
+}
+```
+
+### Docker architecture
+
+```text
+Docker image
+   │
+   ├── Python 3.11
+   ├── application dependencies
+   ├── FastAPI
+   ├── LangGraph
+   ├── MCP
+   ├── RAG index
+   └── knowledge-base documents
+
+Runtime
+   │
+   ├── AWS credentials mounted read-only
+   └── Bedrock access through boto3
+```
+
+AWS credentials are **not baked into the Docker image**.
 ---
 
 ## Technology Stack
