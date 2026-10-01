@@ -1,8 +1,10 @@
 FROM python:3.11-slim-trixie
 
-# Apply current Debian OpenSSL security updates
 RUN apt-get update \
-    && apt-get install --only-upgrade -y openssl libssl3t64 \
+    && apt-get install --only-upgrade -y \
+        openssl \
+        libssl3t64 \
+        libpcre2-8-0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
