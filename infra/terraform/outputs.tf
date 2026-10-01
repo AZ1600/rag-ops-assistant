@@ -17,3 +17,7 @@ output "alb_dns_name" {
 output "alb_url" {
   value = "http://${aws_lb.rag_ops.dns_name}"
 }
+
+output "github_actions_deploy_role_arn" {
+  value = aws_iam_role.github_actions_deploy.arn
+}
