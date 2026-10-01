@@ -4,7 +4,17 @@ An AI-powered operations assistant that combines **Retrieval-Augmented Generatio
 
 The assistant answers questions from a curated operations knowledge base, exposes retrieval through MCP, uses LangGraph to orchestrate model and tool calls, and returns grounded responses with source and evidence metadata.
 
-The project also demonstrates a complete container deployment workflow using **Docker, Amazon ECR, ECS Fargate, IAM, CloudWatch, and an Application Load Balancer**.
+The project also demonstrates a complete cloud delivery workflow using:
+
+- Docker
+- Amazon ECR
+- Amazon ECS Fargate
+- Application Load Balancer
+- AWS IAM
+- Amazon CloudWatch
+- Terraform
+- GitHub Actions
+- GitHub OIDC authentication to AWS
 
 ---
 
@@ -18,7 +28,7 @@ The project also demonstrates a complete container deployment workflow using **D
   >
 </p>
 
-The deployed request path is:
+The deployed application request path is:
 
 ```text
 Client
@@ -93,6 +103,55 @@ Amazon Bedrock
 
 ---
 
+## CI/CD Architecture
+
+Application deployments are automated with GitHub Actions.
+
+```text
+Pull Request
+    |
+    v
+GitHub Actions
+Tests
+    |
+    | merge to main
+    | tests pass
+    v
+Deploy to AWS ECS
+    |
+    v
+GitHub OIDC
+    |
+    v
+AWS STS
+    |
+    v
+Short-Lived AWS Credentials
+    |
+    +-------------------------+
+    |                         |
+    v                         v
+Build ARM64 Image         Amazon ECR
+    |                         |
+    +------------+------------+
+                 |
+                 v
+        ECS Task Definition
+                 |
+                 v
+          ECS Fargate Service
+                 |
+                 v
+       Wait for Service Stable
+                 |
+                 v
+      Verify ALB Target Health
+```
+
+No long-lived AWS access keys are stored in GitHub.
+
+---
+
 ## AWS Deployment
 
 The application is deployed in **AWS eu-west-2** using Amazon ECS on AWS Fargate.
@@ -104,120 +163,23 @@ Current deployment characteristics:
 - 2 GB memory
 - FastAPI listening on container port `8000`
 - Amazon ECR container registry
-- Application Load Balancer health checks
+- Application Load Balancer
+- ALB health checks
 - CloudWatch container logging
-- Separate ECS execution and application task IAM roles
-- IAM-based Bedrock access with no AWS credentials stored in the container
-- Security-group isolation between the ALB and Fargate task
+- separate ECS execution and application task IAM roles
+- scoped Amazon Bedrock permissions
+- security-group isolation between the ALB and Fargate task
+- Terraform-managed infrastructure
+- automated GitHub Actions deployments
+- GitHub OIDC authentication to AWS
 
-The current deployment is a personal project environment. The Application Load Balancer is restricted to the owner's current public `/32` address rather than being open to the entire internet.
+The current environment is a personal project deployment.
 
-The Fargate task currently runs in a public subnet with a public IP assigned, but direct inbound access to the task is blocked by its security group. Port `8000` accepts traffic only from the ALB security group.
+The Application Load Balancer is restricted to the owner's current public `/32` address rather than being open to the entire internet.
 
----
+The Fargate task currently runs in a public subnet with a public IP assigned, but direct inbound access is blocked by its security group.
 
-## Deployment Architecture
-
-```text
-Developer
-    |
-    | docker build
-    v
-Docker Image
-    |
-    v
-Amazon ECR
-    |
-    | image pull
-    v
-ECS Fargate
-    |
-    +----------------------------+
-    |                            |
-    v                            v
-FastAPI                     CloudWatch Logs
-    |
-    v
-LangGraph
-    |
-    v
-MCP / RAG Retrieval
-    |
-    v
-Amazon Bedrock
-    ^
-    |
-ECS Task IAM Role
-```
-
-The ECS execution role is responsible for infrastructure-level operations such as:
-
-- pulling the container image from ECR
-- writing container logs to CloudWatch
-
-The ECS task role is used by the application itself to call Amazon Bedrock.
-
----
-
-## Container Security and Optimisation
-
-The first Docker build pulled the default PyTorch dependency stack, including large CUDA/NVIDIA libraries that were unnecessary for an ARM64 CPU-only Fargate workload.
-
-The original image was approximately:
-
-```text
-Local Docker image: ~9.94 GB
-ECR compressed size: ~3.5 GB
-```
-
-Inspection showed several gigabytes were consumed by:
-
-```text
-nvidia
-triton
-torch
-```
-
-The image was rebuilt using **CPU-only PyTorch for ARM64**, which removed the unused NVIDIA/CUDA stack.
-
-The optimized deployment image is approximately:
-
-```text
-ECR image size: ~586 MB
-Architecture:   arm64/linux
-PyTorch:        CPU only
-CUDA:           disabled
-```
-
-The image also:
-
-- uses `python:3.11-slim-trixie`
-- installs current Debian security package updates during the build
-- builds the RAG index into the container
-- caches the embedding model
-- caches the cross-encoder reranker
-- avoids Docker provenance/attestation for the single-platform deployment image
-
-### ECR Security Scan
-
-<p align="center">
-  <img
-    src="docs/images/ecr-security-scan.png"
-    alt="Amazon ECR vulnerability scan for the optimized ARM64 image"
-    width="1100"
-  >
-</p>
-
-The documented deployment image scan completed with:
-
-```text
-Critical: 0
-High:     2
-Medium:   1
-Low:      1
-```
-
-The remaining high-severity findings were reviewed as operating-system package findings. They were tracked rather than force-patched using packages outside the configured Debian repositories.
+Port `8000` accepts traffic only from the ALB security group.
 
 ---
 
@@ -251,8 +213,6 @@ GET /health
 ```
 
 The task security group accepts port `8000` traffic only from the ALB security group.
-
-The ALB security group is restricted to the owner's current public `/32` address for this personal deployment.
 
 ---
 
@@ -341,26 +301,34 @@ The terminal trace below shows LangGraph routing a knowledge-base question to Am
 ## Key Features
 
 - Retrieval-Augmented Generation over operational documentation
-- Hybrid semantic and keyword retrieval
+- hybrid semantic and keyword retrieval
 - Sentence Transformer embeddings
-- Cross-encoder reranking
+- cross-encoder reranking
 - Amazon Bedrock / Amazon Nova integration
 - MCP tool discovery and invocation
 - LangGraph-based agent orchestration
-- Hard no-evidence guard for unsupported questions
+- hard no-evidence guard for unsupported questions
 - FastAPI REST API
-- Structured sources and evidence metadata
-- Persistent MCP service
-- Retrieval evaluation suite
-- Automated API tests
-- GitHub Actions CI
+- structured sources and evidence metadata
+- persistent MCP service
+- retrieval evaluation suite
+- automated API tests
 - Docker containerisation
 - ARM64 CPU-only container optimisation
 - Amazon ECR image storage and scanning
-- ECS Fargate deployment
+- Amazon ECS Fargate deployment
 - Application Load Balancer
 - IAM task-role authentication
 - CloudWatch container logging
+- Terraform Infrastructure as Code
+- GitHub Actions CI
+- GitHub Actions continuous deployment
+- GitHub OIDC authentication to AWS
+- short-lived AWS deployment credentials
+- commit-SHA container image tagging
+- automated ECS rolling deployments
+- automated ECS service-stability checks
+- automated ALB target-health verification
 
 ---
 
@@ -517,12 +485,78 @@ The vector index is stored locally using NumPy arrays and accompanying JSON chun
 
 ---
 
+## Container Security and Optimisation
+
+The first Docker build pulled the default PyTorch dependency stack, including large CUDA/NVIDIA libraries that were unnecessary for an ARM64 CPU-only Fargate workload.
+
+The original image was approximately:
+
+```text
+Local Docker image: ~9.94 GB
+ECR compressed size: ~3.5 GB
+```
+
+Inspection showed several gigabytes were consumed by:
+
+```text
+nvidia
+triton
+torch
+```
+
+The image was rebuilt using **CPU-only PyTorch for ARM64**, removing the unused NVIDIA/CUDA stack.
+
+The optimized deployment image is approximately:
+
+```text
+ECR image size: ~586 MB
+Architecture:   arm64/linux
+PyTorch:        CPU only
+CUDA:           disabled
+```
+
+The image also:
+
+- uses `python:3.11-slim-trixie`
+- installs current Debian security package updates during the build
+- builds the RAG index into the container
+- caches the embedding model
+- caches the cross-encoder reranker
+- avoids Docker provenance/attestation for the single-platform deployment image
+
+### ECR Security Scan
+
+<p align="center">
+  <img
+    src="docs/images/ecr-security-scan.png"
+    alt="Amazon ECR vulnerability scan for the optimized ARM64 image"
+    width="1100"
+  >
+</p>
+
+The documented deployment image scan completed with:
+
+```text
+Critical: 0
+High:     2
+Medium:   1
+Low:      1
+```
+
+The remaining high-severity findings were reviewed as operating-system package findings.
+
+They were tracked rather than force-patched using packages outside the configured Debian repositories.
+
+---
+
 ## Project Structure
 
 ```text
 rag-ops-assistant/
 ├── .github/
 │   └── workflows/
+│       ├── tests.yml
+│       └── deploy.yml
 │
 ├── data/
 │   ├── az104-infrastructure-lab.md
@@ -547,6 +581,23 @@ rag-ops-assistant/
 │
 ├── evals/
 │   └── retrieval_cases.json
+│
+├── infra/
+│   └── terraform/
+│       ├── .terraform.lock.hcl
+│       ├── alb.tf
+│       ├── data.tf
+│       ├── ecr.tf
+│       ├── ecs.tf
+│       ├── github-actions.tf
+│       ├── iam.tf
+│       ├── logs.tf
+│       ├── outputs.tf
+│       ├── providers.tf
+│       ├── security-groups.tf
+│       ├── terraform.tfvars.example
+│       ├── variables.tf
+│       └── versions.tf
 │
 ├── src/
 │   ├── __init__.py
@@ -581,7 +632,12 @@ For local development:
 - AWS account with Amazon Bedrock access
 - AWS CLI credentials/profile configured locally
 
-Create the environment:
+For infrastructure management:
+
+- Terraform
+- AWS CLI
+
+Create the Python environment:
 
 ```bash
 python -m venv .venv
@@ -589,7 +645,7 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Development/test dependencies can be installed with:
+Development/test dependencies:
 
 ```bash
 python -m pip install -r requirements-dev.txt
@@ -633,7 +689,7 @@ python -m pytest -v
 
 The API tests mock the Bedrock/LangGraph service where appropriate so automated tests do not require live AWS calls.
 
-GitHub Actions runs the automated test suite for repository changes.
+GitHub Actions also runs the automated test suite for repository changes.
 
 ---
 
@@ -865,15 +921,30 @@ This removes the need to store static AWS access keys inside the deployed contai
 
 ## Amazon ECR
 
-The optimized ARM64 image is pushed to Amazon ECR using a versioned tag.
+The optimized ARM64 image is stored in Amazon ECR.
 
-Example:
+Automated deployments use the Git commit SHA as the image tag:
 
 ```text
-rag-ops-assistant:v3-arm64-cpu
+rag-ops-assistant:<commit-sha>
 ```
 
-Using versioned image tags makes it easier to identify and roll back deployment candidates.
+This creates a direct relationship between:
+
+```text
+Git commit
+    |
+    v
+ECR image
+    |
+    v
+ECS task-definition revision
+    |
+    v
+Running deployment
+```
+
+This also makes deployment history and rollback candidates easier to identify.
 
 ECR scan-on-push is enabled for the repository.
 
@@ -910,9 +981,9 @@ Network mode:       awsvpc
 Container port:     8000
 ```
 
-### IAM Roles
+### Runtime IAM Roles
 
-Two different roles are used.
+Two different runtime roles are used.
 
 ```text
 ECS Execution Role
@@ -979,6 +1050,322 @@ This provides centralized visibility into:
 
 ---
 
+## Infrastructure as Code
+
+The AWS deployment is managed with **Terraform**.
+
+Terraform configuration is stored under:
+
+```text
+infra/terraform/
+```
+
+Terraform manages:
+
+- Amazon ECR repository
+- ECS cluster
+- ECS service configuration
+- bootstrap ECS task definition
+- ECS execution role
+- ECS application task role
+- scoped Amazon Bedrock permissions
+- CloudWatch log group
+- Application Load Balancer
+- ALB listener
+- target group
+- ALB security group
+- Fargate task security group
+- GitHub Actions OIDC provider
+- GitHub Actions deployment IAM role
+- GitHub Actions deployment IAM policy
+
+The default VPC and existing public subnets are discovered through Terraform data sources rather than recreated.
+
+### Terraform Structure
+
+```text
+infra/terraform/
+├── .terraform.lock.hcl
+├── alb.tf
+├── data.tf
+├── ecr.tf
+├── ecs.tf
+├── github-actions.tf
+├── iam.tf
+├── logs.tf
+├── outputs.tf
+├── providers.tf
+├── security-groups.tf
+├── terraform.tfvars.example
+├── variables.tf
+└── versions.tf
+```
+
+### Terraform and CI/CD Ownership
+
+Terraform owns the long-lived infrastructure configuration.
+
+GitHub Actions owns application image deployment revisions.
+
+```text
+Terraform
+  |
+  +--> ECR repository
+  +--> IAM
+  +--> ALB / target group / listener
+  +--> security groups
+  +--> ECS cluster
+  +--> ECS service configuration
+  +--> CloudWatch
+  +--> GitHub OIDC infrastructure
+
+
+GitHub Actions
+  |
+  +--> build application image
+  +--> push commit-SHA image to ECR
+  +--> register new task-definition revision
+  +--> update ECS service
+```
+
+Terraform ignores CI-managed task-definition image revisions so a later infrastructure plan does not roll the running application back to an older image.
+
+### Local Terraform Usage
+
+Create a local variables file:
+
+```bash
+cp infra/terraform/terraform.tfvars.example \
+   infra/terraform/terraform.tfvars
+```
+
+Update it with your AWS profile and the CIDR allowed to reach the personal-project ALB:
+
+```hcl
+aws_region       = "eu-west-2"
+aws_profile      = "<your-aws-profile>"
+alb_allowed_cidr = "<YOUR_PUBLIC_IP>/32"
+```
+
+The real `terraform.tfvars` file and Terraform state files are intentionally excluded from Git.
+
+Initialize Terraform:
+
+```bash
+terraform -chdir=infra/terraform init
+```
+
+Format and validate:
+
+```bash
+terraform -chdir=infra/terraform fmt -check
+terraform -chdir=infra/terraform validate
+```
+
+Preview infrastructure changes:
+
+```bash
+terraform -chdir=infra/terraform plan
+```
+
+The existing AWS deployment was imported into Terraform state and reconciled with the configuration.
+
+Zero-drift verification produced:
+
+```text
+No changes. Your infrastructure matches the configuration.
+```
+
+---
+
+## Continuous Integration
+
+The project uses:
+
+```text
+.github/workflows/tests.yml
+```
+
+Pull requests and repository changes run the automated Python test suite.
+
+The current API tests cover:
+
+- health endpoint
+- known knowledge-base question
+- no-evidence question
+- general question
+- empty-question validation
+
+Run locally with:
+
+```bash
+python -m pytest -v
+```
+
+Current suite:
+
+```text
+5 passed
+```
+
+---
+
+## Continuous Deployment
+
+The deployment workflow is stored at:
+
+```text
+.github/workflows/deploy.yml
+```
+
+After the `Tests` workflow succeeds on `main`, the AWS deployment starts automatically.
+
+The pipeline performs:
+
+```text
+Tests succeed on main
+        |
+        v
+Resolve deployment SHA
+        |
+        v
+Checkout exact revision
+        |
+        v
+Authenticate to AWS through OIDC
+        |
+        v
+Verify AWS identity
+        |
+        v
+Log in to Amazon ECR
+        |
+        v
+Build native ARM64 image
+        |
+        v
+Push commit-SHA image
+        |
+        v
+Download current ECS task definition
+        |
+        v
+Render new image into task definition
+        |
+        v
+Register new task-definition revision
+        |
+        v
+Update ECS service
+        |
+        v
+Wait for service stability
+        |
+        v
+Verify ALB target health
+```
+
+The workflow uses a native ARM64 GitHub-hosted runner, matching the Fargate runtime architecture.
+
+---
+
+## GitHub OIDC Authentication
+
+The deployment workflow does **not** use stored AWS access keys.
+
+Authentication works as follows:
+
+```text
+GitHub Actions
+      |
+      | OIDC token
+      v
+AWS STS
+      |
+      | temporary credentials
+      v
+GitHub Deployment IAM Role
+      |
+      +--> ECR
+      +--> ECS
+      +--> IAM PassRole
+      +--> ALB target-health reads
+```
+
+The OIDC trust relationship is restricted to this repository's `main` branch.
+
+The deployment role is limited to the permissions required by the pipeline:
+
+- obtain an ECR authorization token
+- push images to the project ECR repository
+- describe and register ECS task definitions
+- describe and update the ECS service
+- pass only the ECS execution and task roles
+- read ALB target-group and target-health information
+
+The GitHub repository stores only:
+
+```text
+AWS_DEPLOY_ROLE_ARN
+```
+
+No long-lived AWS access key or secret access key is stored in GitHub.
+
+Because the ALB is restricted to the owner's `/32`, the GitHub-hosted runner validates deployment health through the AWS ELB target-health API rather than directly accessing the ALB URL.
+
+---
+
+## Verified Automated Deployment
+
+The first end-to-end automated deployment completed successfully.
+
+The following GitHub Actions stages passed:
+
+```text
+Resolve deployment SHA             ✅
+Checkout deployed revision         ✅
+Configure AWS credentials          ✅
+Verify AWS identity                ✅
+Log in to Amazon ECR               ✅
+Build and push ARM64 image         ✅
+Download current task definition   ✅
+Render new image                   ✅
+Deploy ECS task definition         ✅
+Verify ALB target health           ✅
+```
+
+This validates the complete delivery path:
+
+```text
+Git commit
+    |
+    v
+GitHub Actions Tests
+    |
+    v
+GitHub OIDC
+    |
+    v
+AWS
+    |
+    v
+ARM64 Docker Build
+    |
+    v
+Amazon ECR
+    |
+    v
+New ECS Task Revision
+    |
+    v
+Fargate Rolling Deployment
+    |
+    v
+Healthy ALB Target
+```
+
+---
+
 ## Technology Stack
 
 | Component | Technology |
@@ -1000,8 +1387,11 @@ This provides centralized visibility into:
 | CPU architecture | ARM64 |
 | Load balancing | Application Load Balancer |
 | Logging | Amazon CloudWatch |
-| Identity | AWS IAM task and execution roles |
+| Runtime identity | AWS IAM |
+| Infrastructure as Code | Terraform |
 | CI | GitHub Actions |
+| CD | GitHub Actions |
+| CI/CD AWS authentication | GitHub OIDC + AWS STS |
 
 ---
 
@@ -1031,7 +1421,7 @@ RAG
 = retrieves relevant evidence
 
 MCP
-= standardizes how retrieval is exposed as a tool
+= standardizes retrieval as a tool
 
 Bedrock
 = selects tools and generates responses
@@ -1049,7 +1439,16 @@ IAM
 = supplies temporary AWS permissions
 
 ALB
-= provides stable routing and health checks
+= provides routing and health checks
+
+Terraform
+= manages long-lived AWS infrastructure
+
+GitHub Actions
+= tests and deploys application revisions
+
+GitHub OIDC
+= provides keyless CI/CD authentication to AWS
 ```
 
 A key design decision is that unsupported retrieval results are handled with application-level control flow:
@@ -1090,7 +1489,7 @@ The following flows have been tested successfully:
 - local container `/ask`
 - Amazon ECR image push
 - Amazon ECR vulnerability scanning
-- zero-critical deployment image
+- zero-critical documented deployment image
 - ECS task definition registration
 - ARM64 Fargate execution
 - ECS service deployment
@@ -1100,100 +1499,21 @@ The following flows have been tested successfully:
 - ALB health checks
 - end-to-end `/ask` request through the ALB
 - security-group isolation between the ALB and Fargate task
+- Terraform import of existing AWS infrastructure
+- Terraform zero-drift reconciliation
+- Terraform-managed GitHub OIDC provider
+- least-privilege GitHub Actions AWS role
+- GitHub OIDC authentication
+- native ARM64 GitHub-hosted build
+- commit-SHA image tagging
+- automated ECR image push
+- automated ECS task-definition registration
+- automated ECS rolling deployment
+- automated ECS service-stability wait
+- automated ALB target-health verification
+- successful end-to-end deployment triggered from `main`
 
 ---
-## Infrastructure as Code
-
-The AWS deployment is managed with **Terraform**.
-
-Terraform configuration is stored under:
-
-```text
-infra/terraform/
-```
-
-Terraform manages the existing AWS deployment, including:
-
-- Amazon ECR repository
-- ECS cluster
-- ECS task definition
-- ECS Fargate service
-- ECS execution role
-- ECS application task role
-- scoped Amazon Bedrock permissions
-- CloudWatch log group
-- Application Load Balancer
-- ALB listener
-- target group
-- ALB security group
-- Fargate task security group
-
-The default VPC and existing public subnets are discovered through Terraform data sources rather than recreated.
-
-### Terraform Structure
-
-```text
-infra/terraform/
-├── alb.tf
-├── data.tf
-├── ecr.tf
-├── ecs.tf
-├── iam.tf
-├── logs.tf
-├── outputs.tf
-├── providers.tf
-├── security-groups.tf
-├── terraform.tfvars.example
-├── variables.tf
-└── versions.tf
-```
-
-### Local Usage
-
-Create a local variables file:
-
-```bash
-cp infra/terraform/terraform.tfvars.example \
-   infra/terraform/terraform.tfvars
-```
-
-Update it with your AWS profile and the CIDR allowed to reach the personal-project ALB:
-
-```hcl
-aws_region       = "eu-west-2"
-aws_profile      = "<your-aws-profile>"
-alb_allowed_cidr = "<YOUR_PUBLIC_IP>/32"
-```
-
-The real `terraform.tfvars` file and Terraform state files are intentionally excluded from Git.
-
-Initialize Terraform:
-
-```bash
-terraform -chdir=infra/terraform init
-```
-
-Validate the configuration:
-
-```bash
-terraform -chdir=infra/terraform validate
-```
-
-Preview changes:
-
-```bash
-terraform -chdir=infra/terraform plan
-```
-
-The existing AWS deployment was imported into Terraform state and reconciled against the configuration.
-
-The final verification produced:
-
-```text
-No changes. Your infrastructure matches the configuration.
-```
-
-This confirms the deployed AWS environment and Terraform configuration are in sync.
 
 ## Future Improvements
 
@@ -1201,12 +1521,14 @@ Possible next iterations include:
 
 - HTTPS with a custom domain and AWS Certificate Manager
 - authentication and authorization for the API
-- Remote Terraform state and state locking
-  Terraform-driven CI/CD deployments
-- automated Docker build and ECR push through GitHub Actions
-- automated ECS deployments
+- remote Terraform state and state locking
+- Terraform plan validation in pull requests
+- GitHub Environment protection for production deployments
+- automated rollback workflow
+- ECR image lifecycle policies
 - ECR enhanced vulnerability scanning
 - LangGraph tracing and distributed observability
+- CloudWatch alarms and alerting
 - ECS/Fargate autoscaling
 - private-subnet task deployment
 - VPC endpoints for AWS service access
@@ -1221,13 +1543,41 @@ Possible next iterations include:
 
 This repository does not contain AWS access keys or secret credentials.
 
-The ECS deployment uses IAM task credentials provided dynamically by AWS.
+The ECS application uses temporary IAM task-role credentials provided dynamically by AWS.
 
-Account-specific deployment values should not be committed to the public repository. The files under `deploy/ecs/` should use placeholders for values such as:
+The GitHub Actions deployment pipeline uses GitHub OIDC and AWS STS to obtain short-lived deployment credentials.
+
+Long-lived AWS access keys are not stored as GitHub Actions secrets.
+
+Account-specific deployment values should not be committed to the public repository.
+
+The example files under:
+
+```text
+deploy/ecs/
+```
+
+use placeholders for values such as:
 
 ```text
 <AWS_ACCOUNT_ID>
 <AWS_REGION>
+```
+
+The following Terraform files are intentionally excluded from Git:
+
+```text
+terraform.tfvars
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfplan
+```
+
+The Terraform provider lock file is committed:
+
+```text
+infra/terraform/.terraform.lock.hcl
 ```
 
 Screenshots used in this README redact account identifiers, public IP addresses, and other deployment-specific values where appropriate.
