@@ -1102,6 +1102,98 @@ The following flows have been tested successfully:
 - security-group isolation between the ALB and Fargate task
 
 ---
+## Infrastructure as Code
+
+The AWS deployment is managed with **Terraform**.
+
+Terraform configuration is stored under:
+
+```text
+infra/terraform/
+```
+
+Terraform manages the existing AWS deployment, including:
+
+- Amazon ECR repository
+- ECS cluster
+- ECS task definition
+- ECS Fargate service
+- ECS execution role
+- ECS application task role
+- scoped Amazon Bedrock permissions
+- CloudWatch log group
+- Application Load Balancer
+- ALB listener
+- target group
+- ALB security group
+- Fargate task security group
+
+The default VPC and existing public subnets are discovered through Terraform data sources rather than recreated.
+
+### Terraform Structure
+
+```text
+infra/terraform/
+├── alb.tf
+├── data.tf
+├── ecr.tf
+├── ecs.tf
+├── iam.tf
+├── logs.tf
+├── outputs.tf
+├── providers.tf
+├── security-groups.tf
+├── terraform.tfvars.example
+├── variables.tf
+└── versions.tf
+```
+
+### Local Usage
+
+Create a local variables file:
+
+```bash
+cp infra/terraform/terraform.tfvars.example \
+   infra/terraform/terraform.tfvars
+```
+
+Update it with your AWS profile and the CIDR allowed to reach the personal-project ALB:
+
+```hcl
+aws_region       = "eu-west-2"
+aws_profile      = "<your-aws-profile>"
+alb_allowed_cidr = "<YOUR_PUBLIC_IP>/32"
+```
+
+The real `terraform.tfvars` file and Terraform state files are intentionally excluded from Git.
+
+Initialize Terraform:
+
+```bash
+terraform -chdir=infra/terraform init
+```
+
+Validate the configuration:
+
+```bash
+terraform -chdir=infra/terraform validate
+```
+
+Preview changes:
+
+```bash
+terraform -chdir=infra/terraform plan
+```
+
+The existing AWS deployment was imported into Terraform state and reconciled against the configuration.
+
+The final verification produced:
+
+```text
+No changes. Your infrastructure matches the configuration.
+```
+
+This confirms the deployed AWS environment and Terraform configuration are in sync.
 
 ## Future Improvements
 
@@ -1109,7 +1201,8 @@ Possible next iterations include:
 
 - HTTPS with a custom domain and AWS Certificate Manager
 - authentication and authorization for the API
-- Infrastructure as Code with Terraform or AWS CDK
+- Remote Terraform state and state locking
+  Terraform-driven CI/CD deployments
 - automated Docker build and ECR push through GitHub Actions
 - automated ECS deployments
 - ECR enhanced vulnerability scanning
