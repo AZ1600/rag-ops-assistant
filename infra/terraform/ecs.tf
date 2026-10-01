@@ -46,6 +46,14 @@ resource "aws_ecs_task_definition" "rag_ops" {
       }
     }
   ])
+
+  # GitHub Actions owns application image revisions.
+  # Terraform continues to own the surrounding ECS configuration.
+  lifecycle {
+    ignore_changes = [
+      container_definitions
+    ]
+  }
 }
 
 resource "aws_ecs_service" "rag_ops" {
@@ -83,4 +91,12 @@ resource "aws_ecs_service" "rag_ops" {
   depends_on = [
     aws_lb_listener.http
   ]
+
+  # GitHub Actions updates the service to newly registered
+  # task-definition revisions during application deployment.
+  lifecycle {
+    ignore_changes = [
+      task_definition
+    ]
+  }
 }
