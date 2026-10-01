@@ -1,5 +1,10 @@
 # RAG Ops Assistant
 
+[![Tests](https://github.com/AZ1600/rag-ops-assistant/actions/workflows/tests.yml/badge.svg)](https://github.com/AZ1600/rag-ops-assistant/actions/workflows/tests.yml)
+[![Deploy to AWS ECS](https://github.com/AZ1600/rag-ops-assistant/actions/workflows/deploy.yml/badge.svg)](https://github.com/AZ1600/rag-ops-assistant/actions/workflows/deploy.yml)
+
+An AI-powered operations assistant that combines **Retrieval-Augmented Generation (RAG)**, **Amazon Bedrock**, **Model Context Protocol (MCP)**, **LangGraph**, and **FastAPI**, deployed as an ARM64 container on **Amazon ECS Fargate**.
+
 An AI-powered operations assistant that combines **Retrieval-Augmented Generation (RAG)**, **Amazon Bedrock**, **Model Context Protocol (MCP)**, **LangGraph**, and **FastAPI**, deployed as an ARM64 container on **Amazon ECS Fargate**.
 
 The assistant answers questions from a curated operations knowledge base, exposes retrieval through MCP, uses LangGraph to orchestrate model and tool calls, and returns grounded responses with source and evidence metadata.
