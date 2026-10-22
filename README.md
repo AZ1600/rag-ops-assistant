@@ -5,8 +5,6 @@
 
 An AI-powered operations assistant that combines **Retrieval-Augmented Generation (RAG)**, **Amazon Bedrock**, **Model Context Protocol (MCP)**, **LangGraph**, and **FastAPI**, deployed as an ARM64 container on **Amazon ECS Fargate**.
 
-An AI-powered operations assistant that combines **Retrieval-Augmented Generation (RAG)**, **Amazon Bedrock**, **Model Context Protocol (MCP)**, **LangGraph**, and **FastAPI**, deployed as an ARM64 container on **Amazon ECS Fargate**.
-
 The assistant answers questions from a curated operations knowledge base, exposes retrieval through MCP, uses LangGraph to orchestrate model and tool calls, and returns grounded responses with source and evidence metadata.
 
 The project also demonstrates a complete cloud delivery workflow using:
@@ -110,7 +108,7 @@ Amazon Bedrock
 
 ## CI/CD Architecture
 
-Application deployments are automated with GitHub Actions.
+GitHub Actions runs offline tests on pull requests and pushes to `main`. AWS deployment is a separate, opt-in action: automatic deployment requires the repository variable `ENABLE_AUTOMATIC_ECS_DEPLOY` to equal `true`. With the variable absent or set to `false`, use a deliberate manual workflow run on `main` when a deployment is wanted.
 
 ```text
 Pull Request
@@ -120,7 +118,8 @@ GitHub Actions
 Tests
     |
     | merge to main
-    | tests pass
+    | tests pass + automatic deployment explicitly enabled
+    | (or a manual deployment run on main)
     v
 Deploy to AWS ECS
     |
@@ -175,7 +174,7 @@ Current deployment characteristics:
 - scoped Amazon Bedrock permissions
 - security-group isolation between the ALB and Fargate task
 - Terraform-managed infrastructure
-- automated GitHub Actions deployments
+- opt-in GitHub Actions deployments
 - GitHub OIDC authentication to AWS
 
 The current environment is a personal project deployment.
@@ -682,7 +681,7 @@ index/
 python -m src.evaluate
 ```
 
-The evaluation suite checks retrieval behavior for supported and unsupported questions.
+The evaluation suite checks retrieval behavior for supported and unsupported questions using the actual embedding model and reranker. It requires an ingested index and locally available models (or model downloads). It does not call Bedrock. A passing suite exits with status `0`; failed cases exit with status `1`. Empty suites are rejected. This model-backed evaluation is separate from the offline CI tests below.
 
 ---
 
@@ -692,9 +691,9 @@ The evaluation suite checks retrieval behavior for supported and unsupported que
 python -m pytest -v
 ```
 
-The API tests mock the Bedrock/LangGraph service where appropriate so automated tests do not require live AWS calls.
+The offline suite tests the real retrieval functions, knowledge-base search and compiled LangGraph workflow using controlled embeddings, reranker scores, Bedrock responses and MCP responses. API tests additionally check HTTP validation and generic error responses. Test guards block network connections, AWS client construction and real model loading. No ingested index or model downloads are needed.
 
-GitHub Actions also runs the automated test suite for repository changes.
+GitHub Actions runs this suite on pull requests and pushes to `main`, and uploads a JUnit report. See [validation details](docs/validation.md) for coverage and limits.
 
 ---
 
@@ -1193,25 +1192,24 @@ The project uses:
 
 Pull requests and repository changes run the automated Python test suite.
 
-The current API tests cover:
+The offline tests cover:
 
-- health endpoint
-- known knowledge-base question
-- no-evidence question
-- general question
-- empty-question validation
+- HTTP health, request validation, evidence responses and generic service errors
+- keyword and semantic score combination, ranking thresholds and source metadata
+- reranking order, rejection thresholds and context formatting
+- knowledge-base refusal when candidates or reranked evidence are insufficient
+- the real compiled LangGraph tool route and hard no-evidence guard
+- MCP errors, unknown tools and state isolation between separate questions
+- evaluation source metrics and command exit codes for passing and failing suites
 
 Run locally with:
 
 ```bash
-python -m pytest -v
+python -m pytest -v --junitxml=test-results/pytest.xml
 ```
 
-Current suite:
-
-```text
-5 passed
-```
+Validated locally: **54 passed**. These deterministic checks do not measure the
+accuracy of the real embedding model or the quality of generated answers.
 
 ---
 
@@ -1223,12 +1221,21 @@ The deployment workflow is stored at:
 .github/workflows/deploy.yml
 ```
 
-After the `Tests` workflow succeeds on `main`, the AWS deployment starts automatically.
+Automatic deployment is **disabled by default**. A successful `Tests` run on `main`
+can start deployment only when the repository Actions variable
+`ENABLE_AUTOMATIC_ECS_DEPLOY` is exactly `true` and deployment-relevant files changed.
+Leave this variable unset or `false` while working on offline validation.
+
+The existing **Run workflow** action remains available on `main`; it is an explicit
+AWS deployment request and does not wait for a new test run. Confirm that the
+selected `main` revision has passed Tests before using it. This update does not
+stop existing AWS resources or change their running costs.
 
 The pipeline performs:
 
 ```text
-Tests succeed on main
+Tests succeed on main + automatic deployment enabled
+(or an explicit manual run on main)
         |
         v
 Resolve deployment SHA
@@ -1322,7 +1329,7 @@ Because the ALB is restricted to the owner's `/32`, the GitHub-hosted runner val
 
 ## Verified Automated Deployment
 
-The first end-to-end automated deployment completed successfully.
+The first end-to-end automated deployment previously completed successfully. The evidence below documents that earlier run; it is not a new live deployment check. Automatic deployment now requires the opt-in variable described above.
 
 The following GitHub Actions stages passed:
 

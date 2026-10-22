@@ -1,5 +1,8 @@
 name: Tests
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -12,6 +15,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -29,5 +33,19 @@ jobs:
           python -m pip install -r requirements-dev.txt
 
       - name: Run tests
+        env:
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+          AWS_EC2_METADATA_DISABLED: "true"
+          LANGCHAIN_TRACING_V2: "false"
+          LANGSMITH_TRACING: "false"
         run: |
-          python -m pytest -v
+          python -m pytest -v --junitxml=test-results/pytest.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: test-results/pytest.xml
+          if-no-files-found: warn

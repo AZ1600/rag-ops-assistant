@@ -34,6 +34,7 @@ jobs:
 
     if: >-
       (github.event_name == 'workflow_run' &&
+       vars.ENABLE_AUTOMATIC_ECS_DEPLOY == 'true' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main') ||
       (github.event_name == 'workflow_dispatch' &&
