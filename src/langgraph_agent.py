@@ -74,7 +74,7 @@ def mcp_result_to_payload(result) -> dict:
     Convert an MCP tool result into a normal Python dictionary.
     """
 
-    if result.structured_content is not None:
+    if not result.is_error and result.structured_content is not None:
         return result.structured_content
 
     text_parts = []
@@ -336,6 +336,11 @@ class LangGraphAgentService:
                 payload = mcp_result_to_payload(
                     result
                 )
+
+            # A failed search is not evidence that the answer is absent.
+            # Stop before another model call; the API reports a generic 500.
+            if "error" in payload:
+                raise RuntimeError("The MCP tool failed to process the request.")
 
             print("MCP tool completed.")
 

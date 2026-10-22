@@ -3,7 +3,7 @@ import json
 
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
-from rag_core import (
+from src.rag_core import (
     RERANKER_MODEL,
     hybrid_search,
     load_index,
@@ -72,6 +72,10 @@ def evaluate_case(
 
 
 def main():
+    cases = load_eval_cases()
+    if not cases:
+        raise ValueError("Retrieval evaluation requires at least one case.")
+
     print("Loading RAG index...")
 
     embeddings, metadata = load_index()
@@ -84,8 +88,6 @@ def main():
 
     print("Loading reranker...")
     reranker = CrossEncoder(RERANKER_MODEL)
-
-    cases = load_eval_cases()
 
     passed = 0
 
@@ -155,6 +157,8 @@ def main():
         f"{passed / total:.1%}"
     )
 
+    return 0 if passed == total else 1
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
