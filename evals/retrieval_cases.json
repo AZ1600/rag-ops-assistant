@@ -1,35 +1,487 @@
 [
   {
+    "id": "cloudops-safety",
+    "category": "supported",
     "question": "How does CloudOps prevent unsafe remediation?",
+    "expect_evidence": true,
     "expected_sources": [
       "cloudops-command-center.md"
     ],
-    "expect_evidence": true
+    "reference_evidence": [
+      {
+        "source": "cloudops-command-center.md",
+        "quote": "Requires verification and approval before runbook-based remediation."
+      }
+    ],
+    "rationale": "Find the documented verification and approval boundary."
   },
   {
+    "id": "cloudops-trace",
+    "category": "supported",
+    "question": "What are the five steps in a CloudOps Decision Trace, and can the trace execute a change?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "cloudops-command-center.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "cloudops-command-center.md",
+        "quote": "Premise → Reasoning → Hypothesis → Verification → Conclusion"
+      },
+      {
+        "source": "cloudops-command-center.md",
+        "quote": "does not require MCP or an LLM, and cannot authorize or execute infrastructure changes."
+      }
+    ],
+    "rationale": "A complete answer needs the sequence and the execution limitation."
+  },
+  {
+    "id": "cloudops-request-id",
+    "category": "supported",
+    "question": "What happens when a CloudOps API caller does not supply x-request-id?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "cloudops-command-center.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "cloudops-command-center.md",
+        "quote": "When one is not supplied, CloudOps Command Center generates a request ID for correlation."
+      }
+    ],
+    "rationale": "Distinguish generated correlation IDs from persisted audit history."
+  },
+  {
+    "id": "cloudops-persistence",
+    "category": "supported",
+    "question": "What persistence does the CloudOps repository use locally if Postgres is not configured?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "cloudops-command-center.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "cloudops-command-center.md",
+        "quote": "Uses Postgres when configured and an in-memory demo fallback for local development."
+      }
+    ],
+    "rationale": "The fallback is explicitly documented; do not assume a local database."
+  },
+  {
+    "id": "cloudops-runbooks",
+    "category": "supported",
+    "question": "Where are CloudOps remediation safety checks and rollback plans documented?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "cloudops-command-center.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "cloudops-command-center.md",
+        "quote": "Documents controlled remediation procedures, safety checks, and rollback plans."
+      }
+    ],
+    "rationale": "Retrieve the runbooks description."
+  },
+  {
+    "id": "azure-private-dns",
+    "category": "supported",
     "question": "How does Private DNS help the VM reach Blob Storage?",
+    "expect_evidence": true,
     "expected_sources": [
       "az104-infrastructure-lab.md"
     ],
-    "expect_evidence": true
+    "reference_evidence": [
+      {
+        "source": "az104-infrastructure-lab.md",
+        "quote": "Azure Private DNS resolves the Storage Blob hostname to the private endpoint IP inside the VNet."
+      }
+    ],
+    "rationale": "Keep the original DNS question and anchor the network-path explanation."
   },
   {
+    "id": "azure-bastion",
+    "category": "supported",
+    "question": "How can an administrator reach the Azure lab VM without assigning it a public IP?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "az104-infrastructure-lab.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "az104-infrastructure-lab.md",
+        "quote": "Azure Bastion provides private administrative access when required."
+      }
+    ],
+    "rationale": "Bastion is the documented administrative access path."
+  },
+  {
+    "id": "azure-storage-rbac",
+    "category": "supported",
+    "question": "Which role lets the Azure lab VM read Blob data, and at what scope?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "az104-infrastructure-lab.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "az104-infrastructure-lab.md",
+        "quote": "Storage Blob Data Reader"
+      },
+      {
+        "source": "az104-infrastructure-lab.md",
+        "quote": "at the Storage account scope:"
+      }
+    ],
+    "rationale": "Both the role and scope are required, not just a general identity description."
+  },
+  {
+    "id": "azure-deployment-failure",
+    "category": "supported",
+    "question": "Why did the first Private Storage deployment fail even though the private endpoint succeeded?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "az104-infrastructure-lab.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "az104-infrastructure-lab.md",
+        "quote": "The active deployment also attempted to redeploy the existing VM using a different SSH public key."
+      }
+    ],
+    "rationale": "The failure was an unrelated immutable VM SSH-key change."
+  },
+  {
+    "id": "azure-deallocation",
+    "category": "supported",
+    "question": "How does the Azure lab reduce unnecessary VM compute charges after validation?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "az104-infrastructure-lab.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "az104-infrastructure-lab.md",
+        "quote": "After validation exercises, the VM is deallocated to reduce unnecessary compute charges."
+      }
+    ],
+    "rationale": "This is a documented lab practice, not current Azure pricing advice."
+  },
+  {
+    "id": "observability-detection",
+    "category": "supported",
     "question": "How does the observability platform detect reliability problems?",
+    "expect_evidence": true,
     "expected_sources": [
       "platform-engineering-observability.md"
     ],
-    "expect_evidence": true
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "multi-window burn-rate monitoring"
+      }
+    ],
+    "rationale": "Keep the original detection question and require evidence of reliability alerting."
   },
   {
+    "id": "observability-correlation",
+    "category": "supported",
+    "question": "How do I move from a Loki error log to its matching distributed trace?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "Grafana uses the trace ID as a derived field."
+      },
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "This allows an operator to move directly from an error log to the trace for the same request."
+      }
+    ],
+    "rationale": "Require the correlation mechanism and investigation path."
+  },
+  {
+    "id": "observability-slos",
+    "category": "supported",
+    "question": "What are the availability and latency SLO targets in the observability lab?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "Availability SLO = 99%"
+      },
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "Latency SLO = 95%"
+      }
+    ],
+    "rationale": "Both documented targets must be retrievable together."
+  },
+  {
+    "id": "observability-no-traffic",
+    "category": "supported",
+    "question": "Does an idle application count as unavailable in the observability lab?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "No application traffic is not treated as a service failure."
+      }
+    ],
+    "rationale": "Check the explicit no-traffic exception rather than general availability material."
+  },
+  {
+    "id": "observability-fast-burn",
+    "category": "supported",
+    "question": "Which windows must exceed 4x for a fast-burn alert?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "1m burn rate > 4\nAND\n5m burn rate > 4"
+      }
+    ],
+    "rationale": "Use the actual fast-burn windows and threshold."
+  },
+  {
+    "id": "pilot-investigation",
+    "category": "supported",
     "question": "How does PlatformPilot detect and investigate operational issues?",
+    "expect_evidence": true,
     "expected_sources": [
       "platform-pilot.md"
     ],
-    "expect_evidence": true
+    "reference_evidence": [
+      {
+        "source": "platform-pilot.md",
+        "quote": "Kubernetes APIs, Prometheus metrics, operational analysis, AI-assisted insights, and role-based access control"
+      }
+    ],
+    "rationale": "Keep the original PlatformPilot question with its documented input signals."
   },
   {
+    "id": "pilot-viewer-export",
+    "category": "supported",
+    "question": "Can a PlatformPilot viewer export findings to CloudOps?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-pilot.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-pilot.md",
+        "quote": "A viewer attempting this operation receives:\n\n```text\n403 Forbidden"
+      }
+    ],
+    "rationale": "Read-only users cannot perform the documented operator export."
+  },
+  {
+    "id": "pilot-auth-unconfigured",
+    "category": "supported",
+    "question": "What does PlatformPilot return when authentication is not configured?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-pilot.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-pilot.md",
+        "quote": "Authentication not configured\n        ↓\n503 Service Unavailable"
+      }
+    ],
+    "rationale": "Missing configuration is 503, unlike missing credentials or an insufficient role."
+  },
+  {
+    "id": "pilot-token-boundary",
+    "category": "supported",
+    "question": "Does PlatformPilot reuse the caller bearer token when it sends findings to CloudOps?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-pilot.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-pilot.md",
+        "quote": "CLOUDOPS_INGEST_TOKEN"
+      },
+      {
+        "source": "platform-pilot.md",
+        "quote": "This separation prevents reuse of one credential across both trust boundaries."
+      }
+    ],
+    "rationale": "Require the outbound credential and trust-boundary separation."
+  },
+  {
+    "id": "pilot-frontend-session",
+    "category": "supported",
+    "question": "How does the PlatformPilot frontend validate a token before treating the browser session as authenticated?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-pilot.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-pilot.md",
+        "quote": "The frontend validates the supplied API token against `/auth/me` before displaying the authenticated role."
+      }
+    ],
+    "rationale": "Distinguish frontend identity validation from the backend role check."
+  },
+  {
+    "id": "ambiguous-viewer",
+    "category": "ambiguous",
+    "question": "What can I inspect as a viewer, and what still needs an operator?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-pilot.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-pilot.md",
+        "quote": "A viewer can inspect operational state but cannot perform operator-level actions."
+      }
+    ],
+    "rationale": "Omit the project name; the role terminology should route to PlatformPilot."
+  },
+  {
+    "id": "ambiguous-request-trace",
+    "category": "ambiguous",
+    "question": "How can I trace an application error back to the request that caused it?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "This allows an operator to move directly from an error log to the trace for the same request."
+      }
+    ],
+    "rationale": "Disambiguate distributed tracing from CloudOps Decision Traces and correlation IDs."
+  },
+  {
+    "id": "ambiguous-private-authorization",
+    "category": "ambiguous",
+    "question": "Does private connectivity itself grant the VM permission to read storage?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "az104-infrastructure-lab.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "az104-infrastructure-lab.md",
+        "quote": "Azure RBAC authorizes the identity to read Blob data."
+      },
+      {
+        "source": "az104-infrastructure-lab.md",
+        "quote": "Azure Private Link provides the private network path to Blob Storage."
+      }
+    ],
+    "rationale": "Related security terms still describe different authorization and networking layers."
+  },
+  {
+    "id": "ambiguous-project-handoff",
+    "category": "ambiguous",
+    "question": "How does a finding move from PlatformPilot into human approval in CloudOps?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-pilot.md",
+      "cloudops-command-center.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-pilot.md",
+        "quote": "The platform can also export structured operational findings to CloudOps Command Center for approval-gated operational workflows."
+      },
+      {
+        "source": "cloudops-command-center.md",
+        "quote": "approvalRequired: true\nstatus: needs_approval\nexecutionMode: manual"
+      }
+    ],
+    "rationale": "Cross-project evidence must include the export and the receiving approval boundary."
+  },
+  {
+    "id": "unsupported-leave",
+    "category": "unsupported",
     "question": "What is the company's annual leave policy?",
+    "expect_evidence": false,
     "expected_sources": [],
-    "expect_evidence": false
+    "reference_evidence": [],
+    "rationale": "The corpus contains project documentation, not an HR leave policy; preserve the original negative case."
+  },
+  {
+    "id": "unsupported-expenses",
+    "category": "unsupported",
+    "question": "What is the employee expense reimbursement limit?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "No employee expense policy or reimbursement limit is documented."
+  },
+  {
+    "id": "unsupported-property",
+    "category": "unsupported",
+    "question": "What is the monthly rent for the tenant at 14 Market Street?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "No tenancy, address or rent ledger is present in this corpus."
+  },
+  {
+    "id": "unsupported-recipe",
+    "category": "unsupported",
+    "question": "How long should I bake a chocolate cake?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "Cooking instructions are outside all four operational documents."
+  },
+  {
+    "id": "unsupported-cloudops-backup",
+    "category": "unsupported",
+    "question": "How many days are CloudOps PostgreSQL backups retained?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "The document describes Postgres persistence but does not define backup retention."
+  },
+  {
+    "id": "unsupported-pilot-tenant",
+    "category": "unsupported",
+    "question": "What is the production Microsoft Entra tenant ID used by PlatformPilot SSO?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "The document lists OIDC/SSO as a future identity extension and gives no production tenant ID."
+  },
+  {
+    "id": "unsupported-observability-retention",
+    "category": "unsupported",
+    "question": "How many days are production Loki logs retained in the observability platform?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "The lab explicitly lacks a production retention strategy; no retention duration is given."
+  },
+  {
+    "id": "unsupported-live-backlog",
+    "category": "unsupported",
+    "question": "How many CloudOps findings are waiting for approval right now?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "Static documentation cannot establish the current live approval backlog."
   }
 ]
