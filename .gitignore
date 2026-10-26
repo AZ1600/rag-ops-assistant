@@ -15,3 +15,6 @@ test-results/
 terraform.tfvars
 *.tfplan
 crash.log
+
+# Local model-backed evaluation reports
+eval-results/

@@ -24,6 +24,8 @@ def test_evaluation_metrics(expect_evidence, expected_sources, results, passed, 
 
     assert evaluate_case({"expect_evidence": expect_evidence, "expected_sources": expected_sources}, results) == {
         "passed": passed, "top1_correct": top1, "source_purity": purity,
+        "source_coverage": passed if not expect_evidence or not results else set(expected_sources).issubset({r["source"] for r in results}),
+        "evidence_coverage": passed if not expect_evidence or not results else True,
     }
 
 
@@ -32,15 +34,24 @@ def test_module_cli_exits_nonzero_for_failed_retrieval_cases(
     tmp_path, monkeypatch, capsys, expected_source, expected_exit,
 ):
     (tmp_path / "evals").mkdir()
+    (tmp_path / "data").mkdir()
+    documents = {"network.md": "private dns", "wrong.md": "an unrelated topic"}
+    for name, text in documents.items():
+        (tmp_path / "data" / name).write_text(text)
     (tmp_path / "evals/retrieval_cases.json").write_text(json.dumps([
-        {"question": "dns", "expect_evidence": True, "expected_sources": [expected_source]},
+        {"id": "cli-case", "category": "supported", "question": "dns", "expect_evidence": True,
+         "expected_sources": [expected_source], "rationale": "Check module exit status.",
+         "reference_evidence": [{"source": expected_source, "quote": documents[expected_source]}]},
     ]))
+    (tmp_path / "index").mkdir()
+    np.save(tmp_path / "index/embeddings.npy", np.array([[1.0, 0], [0, 1.0]]))
+    (tmp_path / "index/chunks.json").write_text(json.dumps({
+        "embedding_model": "fixture", "chunks": [
+            {"chunk_number": number, "source": name, "text": text}
+            for number, (name, text) in enumerate(documents.items(), start=1)
+        ],
+    }))
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(rag_core, "load_index", lambda: (
-        np.array([[1.0, 0]]), {"embedding_model": "fixture", "chunks": [
-            {"chunk_number": 1, "source": "network.md", "text": "private dns"},
-        ]},
-    ))
 
     class Embedding:
         def encode(self, query, normalize_embeddings):
@@ -50,8 +61,19 @@ def test_module_cli_exits_nonzero_for_failed_retrieval_cases(
         def predict(self, pairs):
             return np.array([3.0] * len(pairs))
 
-    monkeypatch.setattr(sentence_transformers, "SentenceTransformer", lambda name: Embedding())
-    monkeypatch.setattr(sentence_transformers, "CrossEncoder", lambda name: Reranker())
+    model_options = []
+
+    def embedding_factory(name, **kwargs):
+        model_options.append(kwargs)
+        return Embedding()
+
+    def reranker_factory(name, **kwargs):
+        model_options.append(kwargs)
+        return Reranker()
+
+    monkeypatch.setattr(sentence_transformers, "SentenceTransformer", embedding_factory)
+    monkeypatch.setattr(sentence_transformers, "CrossEncoder", reranker_factory)
+    monkeypatch.setattr(sys, "argv", ["evaluate", "--offline", "--report", "eval-results/report.json"])
     monkeypatch.delitem(sys.modules, "src.evaluate", raising=False)
     with pytest.raises(SystemExit) as exc:
         runpy.run_module("src.evaluate", run_name="__main__", alter_sys=True)
@@ -59,6 +81,15 @@ def test_module_cli_exits_nonzero_for_failed_retrieval_cases(
     output = capsys.readouterr().out
     assert f"Passed: {1 - expected_exit}/1" in output
     assert ("[PASS]" if expected_exit == 0 else "[FAIL]") in output
+    report = json.loads((tmp_path / "eval-results/report.json").read_text())
+    assert report["summary"] == {"passed": 1 - expected_exit, "total": 1,
+                                 "categories": {"supported": {"passed": 1 - expected_exit, "total": 1}},
+                                 "reference_coverage": {"covered": 1 - expected_exit, "total": 1}}
+    assert report["cases"][0]["metrics"]["passed"] == (expected_exit == 0)
+    assert report["cases"][0]["results"][0]["source"] == "network.md"
+    assert set(report["corpus_sha256"]) == set(documents)
+    assert len(report["dataset_sha256"]) == 64
+    assert model_options == [{"local_files_only": True}, {"local_files_only": True}]
 
 
 def test_empty_evaluation_suite_is_rejected_before_loading_models(tmp_path, monkeypatch):
@@ -73,4 +104,44 @@ def test_empty_evaluation_suite_is_rejected_before_loading_models(tmp_path, monk
 
     monkeypatch.setattr(evaluate, "load_index", unexpected_index_load)
     with pytest.raises(ValueError, match="at least one case"):
-        evaluate.main()
+        evaluate.main([])
+
+
+@pytest.mark.parametrize("results,covered", [
+    ([{"source": "a.md", "text": "wrong content"}], False),
+    ([{"source": "b.md", "text": "first fact second fact"}], False),
+    ([{"source": "a.md", "text": "first fact"}], False),
+    ([{"source": "a.md", "text": "first fact"}, {"source": "a.md", "text": "second fact"}], True),
+    ([{"source": "a.md", "text": "first\n fact and second\t fact"}], True),
+])
+def test_reference_coverage_is_diagnostic_and_checks_the_correct_source(results, covered):
+    from src.evaluate import evaluate_case
+
+    evaluation = evaluate_case({
+        "expect_evidence": True, "expected_sources": ["a.md"],
+        "reference_evidence": [{"source": "a.md", "quote": "first fact"},
+                               {"source": "a.md", "quote": "second fact"}],
+    }, results)
+    assert evaluation["evidence_coverage"] == covered
+    assert evaluation["passed"] == all(result["source"] == "a.md" for result in results)
+
+
+def test_cross_project_case_requires_reference_evidence_from_both_sources():
+    from src.evaluate import evaluate_case
+
+    case = {"expect_evidence": True, "expected_sources": ["a.md", "b.md"],
+            "reference_evidence": [{"source": "a.md", "quote": "export"},
+                                   {"source": "b.md", "quote": "approval"}]}
+    first = [{"source": "a.md", "text": "export"}]
+    assert evaluate_case(case, first)["passed"] is False
+    assert evaluate_case(case, first + [{"source": "b.md", "text": "approval"}])["passed"] is True
+
+
+def test_stale_index_is_rejected_before_loading_models(monkeypatch):
+    from src import evaluate, ingest
+
+    monkeypatch.setattr(evaluate, "load_eval_cases", lambda: [{"id": "case"}])
+    monkeypatch.setattr(evaluate, "load_index", lambda: (np.array([[1.0, 0]]), {"chunks": []}))
+    monkeypatch.setattr(ingest, "load_all_documents", lambda: [{"source": "a.md", "text": "changed"}])
+    with pytest.raises(ValueError, match="index is stale"):
+        evaluate.main(["--offline"])

@@ -678,10 +678,14 @@ index/
 ## Run Retrieval Evaluation
 
 ```bash
-python -m src.evaluate
+python -m src.evaluate --offline --report eval-results/retrieval.json
 ```
 
-The evaluation suite checks retrieval behavior for supported and unsupported questions using the actual embedding model and reranker. It requires an ingested index and locally available models (or model downloads). It does not call Bedrock. A passing suite exits with status `0`; failed cases exit with status `1`. Empty suites are rejected. This model-backed evaluation is separate from the offline CI tests below.
+The evaluation dataset contains **32 labelled questions**: 20 supported, four ambiguous or cross-project, and eight unsupported. Each positive label has exact reference passages checked against the four Markdown documents. This uses the actual embedding model and reranker, not Bedrock, and requires a current ingested index. `--offline` requires cached models; omitting it allows model downloads.
+
+The recorded local baseline passes **30/32 source-selection and abstention checks**. Exact reference coverage is **12/24 answerable cases**, reported separately because equivalent wording may still support an answer. These are retrieval diagnostics, not generated-answer accuracy.
+
+The baseline has two known failures, so the command currently exits **1** and still writes its JSON report. It exits `0` only when every source-selection/abstention case passes. CI validates labels and evaluator behaviour offline; it does not run or claim a passing model benchmark. See [the rubric and baseline findings](docs/retrieval-evaluation.md).
 
 ---
 
@@ -1208,7 +1212,7 @@ Run locally with:
 python -m pytest -v --junitxml=test-results/pytest.xml
 ```
 
-Validated locally: **54 passed**. These deterministic checks do not measure the
+Validated locally: **80 passed**. These deterministic checks do not measure the
 accuracy of the real embedding model or the quality of generated answers.
 
 ---
