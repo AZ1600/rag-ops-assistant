@@ -90,6 +90,54 @@ def test_reranker_includes_exact_threshold():
     assert rag_core.rerank_results("q", [chunk(1, "text")], FixedReranker([-1.0]))
 
 
+@pytest.mark.parametrize("query,text", [
+    ("What is the configured tenant ID?", "SSO and Entra ID are future enhancements."),
+    ("Which client ID does the production app use?", "The app uses OIDC authentication."),
+    ("Show me the AWS account ID.", "AWS accounts contain resources."),
+    ("What is the subscription ID?", "subscription_id = replace-with-your-subscription"),
+    ("What is the tenant ID?", "subscription_id = 7ce1a90f-542c-4f45-b69d-a891cf95fbb5"),
+])
+def test_identifier_value_requests_reject_topic_only_or_wrong_type_evidence(query, text):
+    reranker = FixedReranker([8.0])
+    assert rag_core.rerank_results(query, [chunk(1, text)], reranker) == []
+    assert reranker.calls == []
+
+
+@pytest.mark.parametrize("query,text", [
+    ("What is the tenant ID?", 'tenant_id = "7ce1a90f-542c-4f45-b69d-a891cf95fbb5"'),
+    ("Which client ID is configured?", '"clientId": "7ce1a90f-542c-4f45-b69d-a891cf95fbb5"'),
+    ("What is the subscription ID?", "Subscription ID is `7ce1a90f-542c-4f45-b69d-a891cf95fbb5`"),
+    ("Give me the AWS account ID.", "AWS_ACCOUNT_ID=123456789012"),
+    ("What does a tenant ID mean?", "A tenant ID identifies a directory."),
+    ("What is a tenant ID?", "A tenant ID identifies a directory."),
+    ("What is the tenant ID used for?", "A tenant ID identifies a directory."),
+])
+def test_identifier_guard_keeps_explicit_values_and_conceptual_questions(query, text):
+    assert rag_core.rerank_results(query, [chunk(1, text)], FixedReranker([8.0]))
+
+
+@pytest.mark.parametrize("query,text,expected", [
+    ("How many days are logs retained?", "There is no production retention strategy.", False),
+    ("How many days are backups retained?", "Backups are planned for a future release.", False),
+    ("How many days are logs retained?", "Log retention is 30 days.", True),
+    ("How many days are logs retained?", "Logs are retained for seven days.", True),
+    ("How many days are logs retained?", "Logs are retained for two weeks.", True),
+    ("How does log retention work?", "Retention policies control how old logs are removed.", True),
+    ("What is the tenant ID?", "tenant_id = 00000000-0000-0000-0000-000000000000", False),
+])
+def test_value_guard_distinguishes_missing_values_from_facts_and_concepts(query, text, expected):
+    result = rag_core.rerank_results(query, [chunk(1, text)], FixedReranker([8.0]))
+    assert bool(result) is expected
+
+
+def test_multiple_requested_identifiers_can_be_grounded_in_separate_chunks():
+    records = [chunk(1, "tenant_id = 7ce1a90f-542c-4f45-b69d-a891cf95fbb5"),
+               chunk(2, "client_id = 1fa98a23-d37e-4cb2-9e1c-aa79765b2ab0"),
+               chunk(3, "SSO is on the roadmap.")]
+    result = rag_core.rerank_results("What are the tenant ID and client ID?", records, FixedReranker([8.0, 7.0]))
+    assert [item["chunk_number"] for item in result] == [1, 2]
+
+
 def test_empty_candidates_skip_reranker():
     reranker = FixedReranker([])
     assert rag_core.rerank_results("q", [], reranker) == []
@@ -118,7 +166,7 @@ def test_missing_index_reports_ingestion_command(tmp_path, monkeypatch, missing)
 
 def test_load_index_reads_vectors_and_source_metadata(tmp_path, monkeypatch):
     vectors = np.array([[1.0, 0]])
-    metadata = {"embedding_model": "fixture", "chunks": [chunk(1, "dns")]}
+    metadata = {"embedding_model": "fixture", "chunking_version": rag_core.CHUNKING_VERSION, "chunks": [chunk(1, "dns")]}
     np.save(tmp_path / "embeddings.npy", vectors)
     (tmp_path / "chunks.json").write_text(json.dumps(metadata))
     monkeypatch.setattr(rag_core, "EMBEDDINGS_FILE", tmp_path / "embeddings.npy")
@@ -126,3 +174,13 @@ def test_load_index_reads_vectors_and_source_metadata(tmp_path, monkeypatch):
     actual_vectors, actual_metadata = rag_core.load_index()
     np.testing.assert_array_equal(actual_vectors, vectors)
     assert actual_metadata == metadata
+
+
+@pytest.mark.parametrize("chunking_version", [None, "paragraphs-v0"])
+def test_outdated_index_requires_a_rebuild(tmp_path, monkeypatch, chunking_version):
+    np.save(tmp_path / "embeddings.npy", np.array([[1.0, 0]]))
+    (tmp_path / "chunks.json").write_text(json.dumps({"chunking_version": chunking_version, "chunks": []}))
+    monkeypatch.setattr(rag_core, "EMBEDDINGS_FILE", tmp_path / "embeddings.npy")
+    monkeypatch.setattr(rag_core, "CHUNKS_FILE", tmp_path / "chunks.json")
+    with pytest.raises(SystemExit, match="older chunking format"):
+        rag_core.load_index()

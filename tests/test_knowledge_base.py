@@ -77,3 +77,12 @@ def test_search_refuses_when_reranker_rejects_all_candidates(knowledge_base, mon
     assert result["sources"] == result["evidence"] == []
     assert result["context"] == ""
     assert len(calls["encode"]) == 1
+
+
+def test_tool_refuses_unsupported_identifier_without_passing_background_as_evidence(knowledge_base):
+    tool, calls = knowledge_base
+    result = tool.search("What is the configured tenant ID?")
+    assert result["found"] is False
+    assert result["sources"] == result["evidence"] == []
+    assert result["context"] == ""
+    assert calls["predict"] == []

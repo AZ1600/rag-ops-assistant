@@ -1,0 +1,325 @@
+{
+  "schema_version": 1,
+  "scoring": {
+    "pass": "Expected sources all returned, no unexpected sources; unsupported questions return no chunks.",
+    "reference_coverage": "Diagnostic exact normalized quote coverage; equivalent wording can be missed. Not answer accuracy."
+  },
+  "dataset_sha256": "6414f970c797450e1cf1a35b21d6af63dbba2b20a2d909ac26dc8532280e1308",
+  "corpus_sha256": {
+    "az104-infrastructure-lab.md": "8dcdd4e3f4e07f986d38a7f49a7a109c0141159019129bd6a8c28c4f828c4f99",
+    "cloudops-command-center.md": "3d88391bf39da154a18f132f63f561f58274f981a1cd634933faeef61841a962",
+    "platform-engineering-observability.md": "c1040a49ecfb70cd7930bbf5b1f5e980b0715d77f214cb9a49823676f535b7f3",
+    "platform-pilot.md": "f936ee8a3708ce8102a246b96616d5033eb6b9051a2258922f51f55f7f62bdb8"
+  },
+  "index_sha256": {
+    "chunks.json": "860866818bf2381d8edc32be566886a9f7ad61f9f1e0c9075edd39fd5515145c",
+    "embeddings.npy": "db9a9421a79914fcc654d9a160aabc28e4a6e904bd4e7979b4782e66d823430d"
+  },
+  "models": {
+    "embedding": "all-MiniLM-L6-v2",
+    "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  },
+  "versions": {
+    "python": "3.11.14",
+    "sentence-transformers": "6.1.0",
+    "transformers": "5.17.0",
+    "torch": "2.14.0"
+  },
+  "parameters": {
+    "candidate_count": 8,
+    "hybrid_min_score": 0.4,
+    "top_n": 3,
+    "rerank_min_score": -1.0
+  },
+  "summary": {
+    "passed": 7,
+    "total": 12,
+    "categories": {
+      "supported": {
+        "passed": 5,
+        "total": 9
+      },
+      "unsupported": {
+        "passed": 2,
+        "total": 3
+      }
+    },
+    "reference_coverage": {
+      "covered": 5,
+      "total": 9
+    }
+  },
+  "cases": [
+    {
+      "id": "idle-metrics",
+      "category": "supported",
+      "question": "What happens to availability metrics when the demo app receives no requests?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": false
+      },
+      "results": [
+        {
+          "chunk_number": 58,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.4277103841304779,
+          "rerank_score": -0.238494873046875
+        }
+      ]
+    },
+    {
+      "id": "quiet-service",
+      "category": "supported",
+      "question": "Will a quiet service show zero availability when nobody is using it?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": false,
+        "top1_correct": false,
+        "source_purity": false,
+        "source_coverage": false,
+        "evidence_coverage": false
+      },
+      "results": []
+    },
+    {
+      "id": "no-requests-failure",
+      "category": "supported",
+      "question": "Is no traffic handled as an application failure?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 62,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.4272624745965004,
+          "rerank_score": 8.090935707092285
+        }
+      ]
+    },
+    {
+      "id": "identity-roadmap",
+      "category": "supported",
+      "question": "What identity features are planned for PlatformPilot?",
+      "expected_sources": [
+        "platform-pilot.md"
+      ],
+      "metrics": {
+        "passed": false,
+        "top1_correct": true,
+        "source_purity": false,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 87,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.5414714217185974,
+          "rerank_score": 2.075161933898926
+        },
+        {
+          "chunk_number": 79,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.49667857587337494,
+          "rerank_score": 1.8064093589782715
+        },
+        {
+          "chunk_number": 43,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.4901079908013344,
+          "rerank_score": 0.5813058614730835
+        }
+      ]
+    },
+    {
+      "id": "current-sso",
+      "category": "supported",
+      "question": "Does PlatformPilot currently implement enterprise SSO?",
+      "expected_sources": [
+        "platform-pilot.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 87,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.593736881017685,
+          "rerank_score": 5.090719223022461
+        },
+        {
+          "chunk_number": 103,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.474210849404335,
+          "rerank_score": 1.7577440738677979
+        },
+        {
+          "chunk_number": 101,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.44424927830696104,
+          "rerank_score": -0.9233777523040771
+        }
+      ]
+    },
+    {
+      "id": "oidc-plans",
+      "category": "supported",
+      "question": "How is PlatformPilot authentication different from its future OIDC plans?",
+      "expected_sources": [
+        "platform-pilot.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 87,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.6070664312158311,
+          "rerank_score": 1.7649164199829102
+        },
+        {
+          "chunk_number": 103,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.569865128823689,
+          "rerank_score": -0.18737295269966125
+        },
+        {
+          "chunk_number": 102,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.511886362518583,
+          "rerank_score": -0.9151912331581116
+        }
+      ]
+    },
+    {
+      "id": "missing-tenant-value",
+      "category": "unsupported",
+      "question": "What is the configured Azure tenant ID for this production application?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "missing-client-value",
+      "category": "unsupported",
+      "question": "Which client ID is configured for PlatformPilot OIDC?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": false,
+        "top1_correct": false,
+        "source_purity": false,
+        "source_coverage": false,
+        "evidence_coverage": false
+      },
+      "results": [
+        {
+          "chunk_number": 87,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.5740557253360749,
+          "rerank_score": 1.300902009010315
+        }
+      ]
+    },
+    {
+      "id": "trace-id-concept",
+      "category": "supported",
+      "question": "What is an OpenTelemetry trace ID used for?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": false,
+        "top1_correct": false,
+        "source_purity": false,
+        "source_coverage": false,
+        "evidence_coverage": false
+      },
+      "results": []
+    },
+    {
+      "id": "request-id-concept",
+      "category": "supported",
+      "question": "What does x-request-id do in CloudOps?",
+      "expected_sources": [
+        "cloudops-command-center.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 44,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.5517726490894953,
+          "rerank_score": 5.988061904907227
+        }
+      ]
+    },
+    {
+      "id": "retention-concept",
+      "category": "supported",
+      "question": "How is log retention handled in the observability lab?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": false,
+        "top1_correct": false,
+        "source_purity": false,
+        "source_coverage": false,
+        "evidence_coverage": false
+      },
+      "results": []
+    },
+    {
+      "id": "missing-audit-duration",
+      "category": "unsupported",
+      "question": "How many days are CloudOps audit logs retained?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    }
+  ]
+}

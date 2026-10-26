@@ -1,0 +1,173 @@
+[
+  {
+    "id": "idle-metrics",
+    "category": "supported",
+    "question": "What happens to availability metrics when the demo app receives no requests?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "No application traffic is not treated as a service failure."
+      }
+    ],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  },
+  {
+    "id": "quiet-service",
+    "category": "supported",
+    "question": "Will a quiet service show zero availability when nobody is using it?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "No application traffic is not treated as a service failure."
+      }
+    ],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  },
+  {
+    "id": "no-requests-failure",
+    "category": "supported",
+    "question": "Is no traffic handled as an application failure?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "No application traffic is not treated as a service failure."
+      }
+    ],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  },
+  {
+    "id": "identity-roadmap",
+    "category": "supported",
+    "question": "What identity features are planned for PlatformPilot?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-pilot.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-pilot.md",
+        "quote": "Future identity enhancements may include:"
+      }
+    ],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  },
+  {
+    "id": "current-sso",
+    "category": "supported",
+    "question": "Does PlatformPilot currently implement enterprise SSO?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-pilot.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-pilot.md",
+        "quote": "It is not intended to represent a complete enterprise identity platform."
+      }
+    ],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  },
+  {
+    "id": "oidc-plans",
+    "category": "supported",
+    "question": "How is PlatformPilot authentication different from its future OIDC plans?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-pilot.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-pilot.md",
+        "quote": "Future identity enhancements may include:"
+      }
+    ],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  },
+  {
+    "id": "missing-tenant-value",
+    "category": "unsupported",
+    "question": "What is the configured Azure tenant ID for this production application?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  },
+  {
+    "id": "missing-client-value",
+    "category": "unsupported",
+    "question": "Which client ID is configured for PlatformPilot OIDC?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  },
+  {
+    "id": "trace-id-concept",
+    "category": "supported",
+    "question": "What is an OpenTelemetry trace ID used for?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "Grafana uses the trace ID as a derived field."
+      }
+    ],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  },
+  {
+    "id": "request-id-concept",
+    "category": "supported",
+    "question": "What does x-request-id do in CloudOps?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "cloudops-command-center.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "cloudops-command-center.md",
+        "quote": "When one is not supplied, CloudOps Command Center generates a request ID for correlation."
+      }
+    ],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  },
+  {
+    "id": "retention-concept",
+    "category": "supported",
+    "question": "How is log retention handled in the observability lab?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "no production retention strategy"
+      }
+    ],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  },
+  {
+    "id": "missing-audit-duration",
+    "category": "unsupported",
+    "question": "How many days are CloudOps audit logs retained?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "Targeted paraphrase or concept/value boundary probe; not an independent generalization benchmark."
+  }
+]

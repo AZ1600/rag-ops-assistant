@@ -11,6 +11,7 @@ from src.eval_cases import validate_eval_cases
 from src.rag_core import (
     CHUNKS_FILE,
     EMBEDDINGS_FILE,
+    GROUNDING_VERSION,
     DEFAULT_CANDIDATE_COUNT,
     DEFAULT_HYBRID_MIN_SCORE,
     DEFAULT_TOP_N,
@@ -30,8 +31,8 @@ def load_documents():
     return {path.name: path.read_text(encoding="utf-8") for path in sorted(DATA_DIR.glob("*.md"))}
 
 
-def load_eval_cases():
-    with EVAL_FILE.open(
+def load_eval_cases(cases_file=None):
+    with (cases_file or EVAL_FILE).open(
         "r",
         encoding="utf-8",
     ) as file:
@@ -129,8 +130,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Evaluate retrieval against labelled document evidence.")
     parser.add_argument("--offline", action="store_true", help="Load cached models only; never download models.")
     parser.add_argument("--report", type=Path, help="Write a JSON report, including failed cases.")
+    parser.add_argument("--cases", type=Path, help="Evaluate a separate labelled case file; defaults to the fixed dataset.")
     args = parser.parse_args(argv)
-    cases = load_eval_cases()
+    cases = load_eval_cases(args.cases) if args.cases is not None else load_eval_cases()
 
     print("Loading RAG index...")
 
@@ -242,11 +244,12 @@ def main(argv=None):
             "schema_version": 1,
             "scoring": {"pass": "Expected sources all returned, no unexpected sources; unsupported questions return no chunks.",
                         "reference_coverage": "Diagnostic exact normalized quote coverage; equivalent wording can be missed. Not answer accuracy."},
-            "dataset_sha256": digest(EVAL_FILE),
+            "dataset_sha256": digest(args.cases or EVAL_FILE),
             "corpus_sha256": {name: hashlib.sha256(text.encode("utf-8")).hexdigest()
                               for name, text in load_documents().items()},
             "index_sha256": {"chunks.json": digest(CHUNKS_FILE), "embeddings.npy": digest(EMBEDDINGS_FILE)},
             "models": {"embedding": model_name, "reranker": RERANKER_MODEL},
+            "retrieval_policy": {"chunking": metadata["chunking_version"], "grounding": GROUNDING_VERSION},
             "versions": {"python": platform.python_version(), "sentence-transformers": version("sentence-transformers"),
                          "transformers": version("transformers"), "torch": version("torch")},
             "parameters": {"candidate_count": DEFAULT_CANDIDATE_COUNT, "hybrid_min_score": DEFAULT_HYBRID_MIN_SCORE,

@@ -10,9 +10,11 @@ EMBEDDINGS_FILE = INDEX_DIR / "embeddings.npy"
 CHUNKS_FILE = INDEX_DIR / "chunks.json"
 
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+CHUNKING_VERSION = "markdown-sections-v1"
+GROUNDING_VERSION = "literal-cloud-ids-duration-v1"
 
 DEFAULT_CANDIDATE_COUNT = 8
-DEFAULT_HYBRID_MIN_SCORE = 0.40
+DEFAULT_HYBRID_MIN_SCORE = 0.35
 DEFAULT_TOP_N = 3
 DEFAULT_RERANK_MIN_SCORE = -1.0
 
@@ -53,7 +55,7 @@ STOP_WORDS = {
 def load_index():
     if not EMBEDDINGS_FILE.exists() or not CHUNKS_FILE.exists():
         raise SystemExit(
-            "RAG index not found. Run: python src/ingest.py"
+            "RAG index not found. Run: python -m src.ingest"
         )
 
     embeddings = np.load(EMBEDDINGS_FILE)
@@ -63,6 +65,9 @@ def load_index():
         encoding="utf-8",
     ) as file:
         metadata = json.load(file)
+
+    if metadata.get("chunking_version") != CHUNKING_VERSION:
+        raise SystemExit("RAG index uses an older chunking format. Rebuild: python -m src.ingest")
 
     return embeddings, metadata
 
@@ -175,6 +180,7 @@ def rerank_results(
     top_n: int = DEFAULT_TOP_N,
     min_rerank_score: float = DEFAULT_RERANK_MIN_SCORE,
 ):
+    candidates = factual_value_evidence(query, candidates)
     if not candidates:
         return []
 
@@ -203,6 +209,49 @@ def rerank_results(
     ]
 
     return relevant_results[:top_n]
+
+
+def factual_value_evidence(query: str, candidates: list[dict]) -> list[dict]:
+    """Require literal values for explicit cloud-ID or quantified-duration requests.
+
+    Topic relevance (for example, an SSO roadmap) cannot establish a configured
+    identifier or retention duration. Conceptual questions remain ordinary requests. This is
+    a narrow grounding guard, not general answerability or live-value validation.
+    """
+    if re.search(r"^\s*how\s+many\s+(?:calendar\s+|business\s+)?(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?)\b", query, re.I):
+        duration = re.compile(
+            r"\b(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+            r"\s*-?\s*(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?)\b", re.I,
+        )
+        return [candidate for candidate in candidates if duration.search(candidate["text"])]
+    if not re.search(r"^\s*(?:what(?:\s+(?:is|are)|['’]s)|which|(?:please\s+)?(?:show|give|tell)\s+me|provide)\b", query, re.I):
+        return candidates
+    if re.search(r"^\s*what(?:\s+is|['’]s)\s+(?:a|an)\b|\b(?:used for|mean|purpose|format)\b", query, re.I):
+        return candidates
+    requested = set(re.findall(r"\b(tenant|client|subscription|account)[\s_-]*(?:ids?|identifiers?)\b", query, re.I))
+    requested = {kind.lower() for kind in requested}
+    if not requested:
+        return candidates
+    uuid = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
+    patterns = {}
+    for kind in requested:
+        value = rf"(?:{uuid}|\d{{12}})" if kind == "account" else uuid
+        patterns[kind] = re.compile(
+            rf"\b(?:azure[\s_-]*|aws[\s_-]*)?{kind}[\s_-]*(?:id|identifier)"
+            rf"[\"'`]*\s*(?:[:=|]|\bis\b)\s*[\"'`<]*({value})(?![\w-])", re.I,
+        )
+    matches = []
+    supported = set()
+    for candidate in candidates:
+        kinds = set()
+        for kind, pattern in patterns.items():
+            if any(set(match.group(1).replace("-", "")) != {"0"}
+                   for match in pattern.finditer(candidate["text"])):
+                kinds.add(kind)
+        if kinds:
+            matches.append(candidate)
+            supported.update(kinds)
+    return matches if requested.issubset(supported) else []
 
 
 def build_context(results: list[dict]) -> str:
