@@ -1,4 +1,5 @@
 import json
+import hashlib
 import runpy
 import sys
 
@@ -30,15 +31,17 @@ def test_evaluation_metrics(expect_evidence, expected_sources, results, passed, 
 
 
 @pytest.mark.parametrize("expected_source,expected_exit", [("network.md", 0), ("wrong.md", 1)])
+@pytest.mark.parametrize("custom_cases", [False, True])
 def test_module_cli_exits_nonzero_for_failed_retrieval_cases(
-    tmp_path, monkeypatch, capsys, expected_source, expected_exit,
+    tmp_path, monkeypatch, capsys, expected_source, expected_exit, custom_cases,
 ):
     (tmp_path / "evals").mkdir()
     (tmp_path / "data").mkdir()
     documents = {"network.md": "private dns", "wrong.md": "an unrelated topic"}
     for name, text in documents.items():
         (tmp_path / "data" / name).write_text(text)
-    (tmp_path / "evals/retrieval_cases.json").write_text(json.dumps([
+    dataset = tmp_path / ("evals/probes.json" if custom_cases else "evals/retrieval_cases.json")
+    dataset.write_text(json.dumps([
         {"id": "cli-case", "category": "supported", "question": "dns", "expect_evidence": True,
          "expected_sources": [expected_source], "rationale": "Check module exit status.",
          "reference_evidence": [{"source": expected_source, "quote": documents[expected_source]}]},
@@ -46,7 +49,7 @@ def test_module_cli_exits_nonzero_for_failed_retrieval_cases(
     (tmp_path / "index").mkdir()
     np.save(tmp_path / "index/embeddings.npy", np.array([[1.0, 0], [0, 1.0]]))
     (tmp_path / "index/chunks.json").write_text(json.dumps({
-        "embedding_model": "fixture", "chunks": [
+        "embedding_model": "fixture", "chunking_version": rag_core.CHUNKING_VERSION, "chunks": [
             {"chunk_number": number, "source": name, "text": text}
             for number, (name, text) in enumerate(documents.items(), start=1)
         ],
@@ -73,7 +76,12 @@ def test_module_cli_exits_nonzero_for_failed_retrieval_cases(
 
     monkeypatch.setattr(sentence_transformers, "SentenceTransformer", embedding_factory)
     monkeypatch.setattr(sentence_transformers, "CrossEncoder", reranker_factory)
-    monkeypatch.setattr(sys, "argv", ["evaluate", "--offline", "--report", "eval-results/report.json"])
+    argv = ["evaluate", "--offline", "--report", "eval-results/report.json"]
+    if custom_cases:
+        # The default file is deliberately absent: --cases must control loading
+        # and the fingerprint rather than silently using the primary dataset.
+        argv.extend(["--cases", str(dataset)])
+    monkeypatch.setattr(sys, "argv", argv)
     monkeypatch.delitem(sys.modules, "src.evaluate", raising=False)
     with pytest.raises(SystemExit) as exc:
         runpy.run_module("src.evaluate", run_name="__main__", alter_sys=True)
@@ -88,7 +96,10 @@ def test_module_cli_exits_nonzero_for_failed_retrieval_cases(
     assert report["cases"][0]["metrics"]["passed"] == (expected_exit == 0)
     assert report["cases"][0]["results"][0]["source"] == "network.md"
     assert set(report["corpus_sha256"]) == set(documents)
-    assert len(report["dataset_sha256"]) == 64
+    assert report["dataset_sha256"] == hashlib.sha256(dataset.read_bytes()).hexdigest()
+    assert report["retrieval_policy"] == {
+        "chunking": rag_core.CHUNKING_VERSION, "grounding": rag_core.GROUNDING_VERSION,
+    }
     assert model_options == [{"local_files_only": True}, {"local_files_only": True}]
 
 

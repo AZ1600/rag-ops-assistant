@@ -665,7 +665,7 @@ Run:
 python -m src.ingest
 ```
 
-This reads the Markdown documents in `data/`, chunks them, generates embeddings, and creates the local retrieval index.
+This reads the Markdown documents in `data/`, keeps Markdown sections separate with their heading context, generates embeddings, and creates the local retrieval index. Rebuild after applying the retrieval update: older index formats are rejected with an ingestion command. The recorded corpus produces 194 chunks.
 
 Generated files are written under:
 
@@ -683,9 +683,11 @@ python -m src.evaluate --offline --report eval-results/retrieval.json
 
 The evaluation dataset contains **32 labelled questions**: 20 supported, four ambiguous or cross-project, and eight unsupported. Each positive label has exact reference passages checked against the four Markdown documents. This uses the actual embedding model and reranker, not Bedrock, and requires a current ingested index. `--offline` requires cached models; omitting it allows model downloads.
 
-The recorded local baseline passes **30/32 source-selection and abstention checks**. Exact reference coverage is **12/24 answerable cases**, reported separately because equivalent wording may still support an answer. These are retrieval diagnostics, not generated-answer accuracy.
+The updated local run passes **32/32 source-selection and abstention checks**, compared with the preserved **30/32** baseline on the same questions and documents. Exact reference coverage improves from **12/24 to 17/24 answerable cases**. These are retrieval diagnostics; generated-answer accuracy is not measured.
 
-The baseline has two known failures, so the command currently exits **1** and still writes its JSON report. It exits `0` only when every source-selection/abstention case passes. CI validates labels and evaluator behaviour offline; it does not run or claim a passing model benchmark. See [the rubric and baseline findings](docs/retrieval-evaluation.md).
+The update separates Markdown sections, broadens the candidate prefilter from `0.40` to `0.35`, and requires literal values for recognized cloud-ID and quantified-duration requests. The final reranker threshold stays unchanged. These development cases informed the change, so 32/32 is not an unseen-test accuracy claim.
+
+A separate set of 12 targeted probes improves from **7/12 to 11/12**. A “quiet service” paraphrase still returns no evidence. The main evaluation now exits `0` in the recorded environment; the probe evaluation exits `1` and saves its report. CI validates labels, ingestion, retrieval guards and evaluator behaviour offline, without running the real models. See [the rubric](docs/retrieval-evaluation.md) and [the comparison, limits and reproduction commands](docs/retrieval-improvement.md).
 
 ---
 
@@ -1212,7 +1214,7 @@ Run locally with:
 python -m pytest -v --junitxml=test-results/pytest.xml
 ```
 
-Validated locally: **80 passed**. These deterministic checks do not measure the
+Validated locally: **118 passed**. These deterministic checks do not measure the
 accuracy of the real embedding model or the quality of generated answers.
 
 ---

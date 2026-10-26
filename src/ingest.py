@@ -1,8 +1,11 @@
 from pathlib import Path
 import json
+import re
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
+
+from src.rag_core import CHUNKING_VERSION
 
 
 DATA_DIR = Path("data")
@@ -16,33 +19,62 @@ def load_document(path: Path) -> str:
 
 
 def chunk_text(text: str, max_chars: int = 800) -> list[str]:
-    paragraphs = [
-        paragraph.strip()
-        for paragraph in text.split("\n\n")
-        if paragraph.strip()
-    ]
+    """Keep Markdown sections separate and repeat their headings on long sections.
+
+    The size is a soft limit: an indivisible paragraph can exceed it,
+    as before. Heading-like lines inside fenced code are treated as content.
+    """
+    if max_chars <= 0:
+        raise ValueError("max_chars must be positive.")
+    sections = []
+    body = []
+    headings = []
+    document_heading = None
+    fence = None
+    for line in text.splitlines():
+        fence_match = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if fence_match:
+            marker, tail = fence_match.groups()
+            if fence is None:
+                fence = marker
+            elif marker[0] == fence[0] and len(marker) >= len(fence) and not tail.strip():
+                fence = None
+            body.append(line)
+            continue
+        heading = re.match(r"^ {0,3}(#{1,6})\s+\S", line) if fence is None else None
+        if heading:
+            sections.append((list(headings), body))
+            body = []
+            level = len(heading.group(1))
+            while headings and headings[-1][0] >= level:
+                headings.pop()
+            headings.append((level, line.strip()))
+            if document_heading is None:
+                document_heading = line.strip()
+        else:
+            body.append(line)
+    sections.append((list(headings), body))
 
     chunks = []
-    current_chunk = ""
-
-    for paragraph in paragraphs:
-        candidate = (
-            f"{current_chunk}\n\n{paragraph}"
-            if current_chunk
-            else paragraph
-        )
-
-        if len(candidate) <= max_chars:
-            current_chunk = candidate
-        else:
-            if current_chunk:
-                chunks.append(current_chunk)
-
-            current_chunk = paragraph
-
-    if current_chunk:
-        chunks.append(current_chunk)
-
+    for section_headings, lines in sections:
+        if not any(line.strip() and line.strip() not in {"---", "***", "___"} for line in lines):
+            continue
+        labels = [label for _, label in section_headings]
+        if document_heading and labels and document_heading not in labels:
+            labels.insert(0, document_heading)
+        prefix = "\n".join(labels)
+        paragraphs = [p.strip() for p in "\n".join(lines).split("\n\n") if p.strip()]
+        current = ""
+        for paragraph in paragraphs:
+            candidate = f"{current}\n\n{paragraph}" if current else paragraph
+            rendered = f"{prefix}\n\n{candidate}" if prefix else candidate
+            if current and len(rendered) > max_chars:
+                chunks.append(f"{prefix}\n\n{current}" if prefix else current)
+                current = paragraph
+            else:
+                current = candidate
+        if current:
+            chunks.append(f"{prefix}\n\n{current}" if prefix else current)
     return chunks
 
 
@@ -120,6 +152,7 @@ def main():
         json.dump(
             {
                 "embedding_model": MODEL_NAME,
+                "chunking_version": CHUNKING_VERSION,
                 "chunks": chunk_records,
             },
             file,

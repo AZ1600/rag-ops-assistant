@@ -24,10 +24,25 @@ def test_checked_in_dataset_labels_have_real_document_evidence():
     assert {source for case in cases for source in case["expected_sources"]} == set(documents)
 
 
-def test_recorded_baseline_is_paired_with_the_current_dataset_and_corpus():
+def test_targeted_probe_labels_have_real_document_evidence():
     root = Path(__file__).resolve().parents[1]
-    report = json.loads((root / "docs/retrieval-baseline.json").read_text())
-    dataset = root / "evals/retrieval_cases.json"
+    cases = json.loads((root / "evals/retrieval_probes.json").read_text())
+    documents = {p.name: p.read_text() for p in (root / "data").glob("*.md")}
+    assert validate_eval_cases(cases, documents) == cases
+    primary = json.loads((root / "evals/retrieval_cases.json").read_text())
+    assert {case["question"] for case in cases}.isdisjoint(case["question"] for case in primary)
+
+
+@pytest.mark.parametrize("report_name,dataset_name", [
+    ("retrieval-baseline.json", "retrieval_cases.json"),
+    ("retrieval-improvement.json", "retrieval_cases.json"),
+    ("retrieval-probes-baseline.json", "retrieval_probes.json"),
+    ("retrieval-probes.json", "retrieval_probes.json"),
+])
+def test_recorded_report_is_paired_with_the_current_dataset_and_corpus(report_name, dataset_name):
+    root = Path(__file__).resolve().parents[1]
+    report = json.loads((root / "docs" / report_name).read_text())
+    dataset = root / "evals" / dataset_name
     assert report["dataset_sha256"] == hashlib.sha256(dataset.read_bytes()).hexdigest()
     assert report["corpus_sha256"] == {
         p.name: hashlib.sha256(p.read_text().encode("utf-8")).hexdigest()

@@ -26,8 +26,8 @@ information. Every reference quote must exist verbatim in the named source.
 
 Offline CI rejects duplicate IDs/questions, inconsistent categories and labels,
 unknown sources, invented reference quotes and missing source annotations. It
-also checks that the recorded baseline fingerprints match the current corpus and
-dataset. This catches stale annotations; it cannot prove that an absence label or
+also checks that each recorded report fingerprint matches its case file and the
+current corpus. This catches stale annotations; it cannot prove that an absence label or
 human rationale is semantically correct, so those still need review.
 
 ## Scoring rubric
@@ -57,7 +57,7 @@ The CLI exits `0` when all source-selection/abstention cases pass and `1` when a
 fail. It saves the report before returning that failure status. Invalid labels,
 an empty suite or stale index metadata stop evaluation with an error.
 
-## Recorded local baseline
+## Historical local baseline
 
 Run date: 2026-10-23. The index was rebuilt locally from all four documents:
 103 chunks, 384 embedding dimensions. The cached embedding and reranker models
@@ -77,8 +77,9 @@ latency benchmarks or production traffic in this evaluation.
 
 The recorded [JSON report](retrieval-baseline.json) contains per-case results,
 chunk numbers, scores, model names, library versions, retrieval parameters and
-dataset/corpus/index fingerprints. The dataset questions, labels, retrieval
-thresholds and models were not tuned after observing these results. The reference
+dataset/corpus/index fingerprints. At the time of the baseline, the dataset questions, labels, retrieval
+thresholds and models had not been tuned after observing its results. The later
+retrieval update below uses these cases as development feedback. The reference
 coverage metric is deliberately kept separate to avoid treating equivalent
 wording as a source-selection failure.
 
@@ -127,10 +128,25 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 \
   python -m src.evaluate --offline --report eval-results/retrieval.json
 ```
 
-The recorded baseline has two failing cases, so expect exit status `1` and inspect
-the saved report. Do not relabel cases just to obtain a green result. The next
-retrieval changes can be compared against these frozen questions and parameters.
-Cached model revisions or library changes can alter results; the recorded report
-is a local baseline, not a guarantee that every environment will reproduce exact
-floating-point scores. The model-backed run is separate from CI and needs no
+The updated run recorded on 2026-10-26 passes **32/32** and exits `0`; the
+historical baseline above remains available for comparison. Exact reference
+coverage improves from **12/24 to 17/24**. All 32 questions, labels and the four
+documents remain byte-identical. Scoring is unchanged.
+
+Section-aware chunking increases the index from 103 to 194 chunks. The hybrid
+candidate threshold changes from `0.40` to `0.35`; the embedding/reranker models,
+eight-candidate limit, three-result limit and final `-1.0` reranker threshold are
+unchanged. Recognized requests for specific cloud IDs or quantified durations
+must have literal values in candidate evidence. These development cases informed
+those choices, so this is not an independent held-out benchmark.
+
+[The updated JSON report](retrieval-improvement.json) also records chunking and
+grounding policy versions. [The improvement notes](retrieval-improvement.md)
+include the root causes, guard limitations, separate 12 targeted probes and their
+known failure. Those probes improve from 7/12 to 11/12, and intentionally remain
+reported as failing rather than changing their labels to obtain a green result.
+
+Cached model revisions or library changes can alter results; the reports record
+local runs rather than guaranteeing identical floating-point scores in every
+environment. Model-backed evaluation remains separate from CI and requires no
 deployment. The deployment gate from the previous update is unchanged.
