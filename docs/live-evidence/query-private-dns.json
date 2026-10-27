@@ -1,0 +1,34 @@
+{
+  "started_at_utc": "2026-10-27T11:07:05.830579+00:00",
+  "case": "private-dns",
+  "source_revision": "6956bc2",
+  "question": "How does Private DNS help the VM reach Blob Storage?",
+  "http_status": 200,
+  "elapsed_seconds": 4.98,
+  "response": {
+    "answer": "Private DNS plays a crucial role in enabling the VM to reach Blob Storage through a private connection by resolving the storage hostname to the private IP address of the private endpoint within the virtual network (VNet). Here's how it works, based on the evidence:\n\n### How Private DNS Helps the VM Reach Blob Storage\n\n1. **Private Endpoint Configuration**: \n   - A private endpoint is created for the Blob Storage account. This endpoint provides a private IP address (e.g., `10.20.3.4`) within the VNet, allowing the VM to connect to Blob Storage over a private network path instead of the public internet[1].\n\n2. **Private DNS Zone**:\n   - A private DNS zone is linked to the VNet. This zone contains records that map the storage account's hostname to the private IP address of the private endpoint[1].\n   - For example, the private DNS zone includes a record for `privatelink.blob.core.windows.net`, which resolves to the private IP address of the private endpoint[3].\n\n3. **DNS Resolution from the VM**:\n   - When the VM attempts to connect to the Blob Storage account (e.g., `az104lab2uvqlnnpoiad6.blob.core.windows.net`), the DNS resolver in the VNet queries the private DNS zone[3].\n   - The private DNS zone resolves the hostname to the private IP address of the private endpoint (`10.20.3.4`) instead of the public IP address of the storage service[3].\n   - This ensures that all traffic from the VM to Blob Storage goes through the private endpoint and stays within the Azure backbone network, rather than traversing the public internet[1][3].\n\n4. **Network Path**:\n   - The VM uses the resolved private IP address (`10.20.3.4`) to establish a connection to Blob Storage via the private endpoint[1][3].\n   - This connection is secured and isolated within the VNet, providing better security and performance compared to using the public endpoint[1].\n\n### Summary\nPrivate DNS ensures that the VM resolves the Blob Storage hostname to the private IP address of the private endpoint. This allows the VM to communicate with Blob Storage over a private network path, enhancing security and avoiding exposure to the public internet. The process involves configuring a private DNS zone linked to the VNet, which contains the necessary DNS records to map the storage hostname to the private endpoint's IP address.",
+    "sources": [
+      "az104-infrastructure-lab.md"
+    ],
+    "evidence": [
+      {
+        "chunk_number": 9,
+        "source": "az104-infrastructure-lab.md",
+        "rerank_score": 6.603146553039551,
+        "hybrid_score": 0.6608019407306398
+      },
+      {
+        "chunk_number": 10,
+        "source": "az104-infrastructure-lab.md",
+        "rerank_score": 5.373355388641357,
+        "hybrid_score": 0.5125295402748244
+      },
+      {
+        "chunk_number": 30,
+        "source": "az104-infrastructure-lab.md",
+        "rerank_score": 4.285429954528809,
+        "hybrid_score": 0.6420551346881049
+      }
+    ]
+  }
+}

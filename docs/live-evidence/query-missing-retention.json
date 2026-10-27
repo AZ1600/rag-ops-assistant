@@ -1,0 +1,13 @@
+{
+  "started_at_utc": "2026-10-27T11:07:11.268674+00:00",
+  "case": "missing-retention",
+  "source_revision": "6956bc2",
+  "question": "How many days are production Loki logs retained in the observability platform?",
+  "http_status": 200,
+  "elapsed_seconds": 0.68,
+  "response": {
+    "answer": "The knowledge base does not contain sufficient information to answer that question.",
+    "sources": [],
+    "evidence": []
+  }
+}

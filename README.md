@@ -1,836 +1,230 @@
 # RAG Ops Assistant
 
 [![Tests](https://github.com/AZ1600/rag-ops-assistant/actions/workflows/tests.yml/badge.svg)](https://github.com/AZ1600/rag-ops-assistant/actions/workflows/tests.yml)
-[![Deploy to AWS ECS](https://github.com/AZ1600/rag-ops-assistant/actions/workflows/deploy.yml/badge.svg)](https://github.com/AZ1600/rag-ops-assistant/actions/workflows/deploy.yml)
+[AWS deployment evidence](docs/aws-deployment.md) · [Validation details](docs/validation.md)
 
-An AI-powered operations assistant that combines **Retrieval-Augmented Generation (RAG)**, **Amazon Bedrock**, **Model Context Protocol (MCP)**, **LangGraph**, and **FastAPI**, deployed as an ARM64 container on **Amazon ECS Fargate**.
+An operations documentation assistant built with **RAG, Amazon Bedrock, MCP,
+LangGraph and FastAPI**. It retrieves evidence from four engineering project
+snapshots and returns an answer with source files, chunk references and retrieval
+scores.
 
-The assistant answers questions from a curated operations knowledge base, exposes retrieval through MCP, uses LangGraph to orchestrate model and tool calls, and returns grounded responses with source and evidence metadata.
+The project has been **deployed and tested on AWS ECS Fargate** using an ARM64
+container, an Application Load Balancer, IAM task roles, ECR, CloudWatch,
+Terraform and GitHub Actions with OIDC. The [AWS guide](docs/aws-deployment.md)
+preserves the original cloud delivery work.
 
-The project also demonstrates a complete cloud delivery workflow using:
+On **27 October 2026**, merged runtime revision `6956bc2` was deployed again using
+a dedicated temporary Terraform stack. Four live `/ask` requests returned HTTP
+200: two supported answers included source evidence, and two missing-fact
+questions returned the fixed refusal. CloudWatch recorded four MCP searches and
+six Bedrock-node calls. **All 18 test resources were then destroyed**, with
+cleanup independently checked through AWS APIs and local state. The test endpoint
+was removed after verification. [Results, screenshots and limits](docs/live-verification.md).
 
-- Docker
-- Amazon ECR
-- Amazon ECS Fargate
-- Application Load Balancer
-- AWS IAM
-- Amazon CloudWatch
-- Terraform
-- GitHub Actions
-- GitHub OIDC authentication to AWS
+## What it does
 
----
+Use the assistant to ask how a documented system works, such as:
 
-## Architecture
+- “How does Private DNS help the VM reach Blob Storage?”
+- “What are the five steps in a CloudOps Decision Trace, and can it execute a change?”
+- “How do I move from a Loki error log to its matching distributed trace?”
+- “Can a PlatformPilot viewer export findings to CloudOps?”
 
-<p align="center">
-  <img
-    src="docs/images/architecture-diagram.png"
-    alt="RAG Ops Assistant AWS Deployment Architecture"
-    width="1100"
-  >
-</p>
+It searches documentation snapshots. It does not query live cloud resources,
+inspect current incidents or execute remediation. The MCP server exposes one
+read-only tool: `search_knowledge_base`.
 
-The deployed application request path is:
+## How the pieces fit
 
-```text
-Client
-  |
-  v
-Application Load Balancer
-  |
-  v
-ECS Service
-  |
-  v
-ARM64 Fargate Task
-  |
-  v
-FastAPI
-  |
-  v
-LangGraph
-  |
-  +----------------------+
-  |                      |
-  | direct response      | tool_use
-  |                      v
-  |                  MCP Client
-  |                      |
-  |                      v
-  |                  MCP Server
-  |                      |
-  |                      v
-  |              search_knowledge_base
-  |                      |
-  |                      v
-  |                  RAG Engine
-  |              /               \
-  |       Hybrid Search        Reranker
-  |              \               /
-  |               Grounded Evidence
-  |                      |
-  +----------------------+
-             |
-             v
-        Amazon Bedrock
-             |
-             v
-     Answer + Sources + Evidence
+| Layer | Responsibility |
+| --- | --- |
+| FastAPI | HTTP request validation, `/health`, `/ask` and structured responses |
+| LangGraph | Question state, model/tool routing and the no-evidence stopping rule |
+| Bedrock / Nova | Choose tools and generate the response |
+| MCP | Discover and call the knowledge-base search tool over a persistent stdio connection |
+| Retrieval | Select document chunks using embeddings, keyword overlap and reranking |
+| AWS delivery | Run the container on Fargate with Terraform-managed infrastructure and OIDC deployment authentication |
+
+```mermaid
+flowchart TD
+    U[User question] --> API[FastAPI]
+    API --> G[LangGraph]
+    G --> B[Amazon Bedrock]
+    B -->|Tool request| M[MCP search tool]
+    M --> R[Hybrid retrieval and reranking]
+    R --> E{Evidence found?}
+    E -->|Yes: original source context| B
+    E -->|No| A[Fixed abstention response]
+    B -->|Direct or final answer| O[Answer, sources and evidence]
+    A --> O
 ```
 
-Supporting AWS services include:
-
-```text
-Amazon ECR
-    |
-    | container image
-    v
-ECS Fargate
-
-Fargate
-    |
-    | logs
-    v
-CloudWatch Logs
-
-Fargate
-    |
-    | temporary AWS credentials
-    v
-ECS Task IAM Role
-    |
-    v
-Amazon Bedrock
-```
-
----
-
-## CI/CD Architecture
-
-GitHub Actions runs offline tests on pull requests and pushes to `main`. AWS deployment is a separate, opt-in action: automatic deployment requires the repository variable `ENABLE_AUTOMATIC_ECS_DEPLOY` to equal `true`. With the variable absent or set to `false`, use a deliberate manual workflow run on `main` when a deployment is wanted.
-
-```text
-Pull Request
-    |
-    v
-GitHub Actions
-Tests
-    |
-    | merge to main
-    | tests pass + automatic deployment explicitly enabled
-    | (or a manual deployment run on main)
-    v
-Deploy to AWS ECS
-    |
-    v
-GitHub OIDC
-    |
-    v
-AWS STS
-    |
-    v
-Short-Lived AWS Credentials
-    |
-    +-------------------------+
-    |                         |
-    v                         v
-Build ARM64 Image         Amazon ECR
-    |                         |
-    +------------+------------+
-                 |
-                 v
-        ECS Task Definition
-                 |
-                 v
-          ECS Fargate Service
-                 |
-                 v
-       Wait for Service Stable
-                 |
-                 v
-      Verify ALB Target Health
-```
-
-No long-lived AWS access keys are stored in GitHub.
-
----
-
-## AWS Deployment
-
-The application is deployed in **AWS eu-west-2** using Amazon ECS on AWS Fargate.
-
-Current deployment characteristics:
-
-- Linux ARM64 Fargate task
-- 1 vCPU
-- 2 GB memory
-- FastAPI listening on container port `8000`
-- Amazon ECR container registry
-- Application Load Balancer
-- ALB health checks
-- CloudWatch container logging
-- separate ECS execution and application task IAM roles
-- scoped Amazon Bedrock permissions
-- security-group isolation between the ALB and Fargate task
-- Terraform-managed infrastructure
-- opt-in GitHub Actions deployments
-- GitHub OIDC authentication to AWS
-
-The current environment is a personal project deployment.
-
-The Application Load Balancer is restricted to the owner's current public `/32` address rather than being open to the entire internet.
-
-The Fargate task currently runs in a public subnet with a public IP assigned, but direct inbound access is blocked by its security group.
-
-Port `8000` accepts traffic only from the ALB security group.
-
----
-
-## ECS Fargate Service
-
-The application runs as a persistent ECS service behind an Application Load Balancer.
-
-<p align="center">
-  <img
-    src="docs/images/ecs-fargate-service.png"
-    alt="RAG Ops Assistant ECS Fargate service"
-    width="1100"
-  >
-</p>
-
-The current service configuration uses:
-
-```text
-Operating system: Linux
-CPU architecture: ARM64
-CPU:              1024 units / 1 vCPU
-Memory:           2048 MiB
-Container port:   8000
-Desired tasks:    1
-```
-
-The Application Load Balancer performs health checks against:
-
-```text
-GET /health
-```
-
-The task security group accepts port `8000` traffic only from the ALB security group.
-
----
-
-## End-to-End AWS RAG Query
-
-The `/ask` endpoint has been tested through the Application Load Balancer rather than directly against the container.
-
-<p align="center">
-  <img
-    src="docs/images/aws-deployed-rag-query.png"
-    alt="Grounded RAG query through the AWS Application Load Balancer"
-    width="1100"
-  >
-</p>
-
-The deployed response contains:
-
-- a grounded model-generated answer
-- source document names
-- retrieved chunk numbers
-- hybrid retrieval scores
-- cross-encoder reranking scores
-
-This validates the complete cloud path:
-
-```text
-Client
-  |
-  v
-Application Load Balancer
-  |
-  v
-ECS Fargate
-  |
-  v
-FastAPI
-  |
-  v
-LangGraph
-  |
-  v
-MCP Tool
-  |
-  v
-RAG Retrieval
-  |
-  v
-Amazon Bedrock
-  |
-  v
-Grounded Response
-```
-
-Amazon Bedrock is accessed from Fargate using the ECS task IAM role rather than mounted local credentials.
-
----
-
-## Application Demo
-
-### Grounded API Query
-
-The `/ask` endpoint returns a grounded response together with the source documents and retrieval evidence used to support it.
-
-<p align="center">
-  <img
-    src="docs/images/grounded-query.png"
-    alt="Grounded API Query"
-    width="1000"
-  >
-</p>
-
-### MCP Tool Invocation Flow
-
-The terminal trace below shows LangGraph routing a knowledge-base question to Amazon Bedrock, Bedrock requesting the MCP tool, the MCP server executing `search_knowledge_base`, and the retrieved evidence being returned before the final response.
-
-<p align="center">
-  <img
-    src="docs/images/mcp-flow-terminal.png"
-    alt="MCP Tool Invocation Flow"
-    width="1000"
-  >
-</p>
-
----
-
-## Key Features
-
-- Retrieval-Augmented Generation over operational documentation
-- hybrid semantic and keyword retrieval
-- Sentence Transformer embeddings
-- cross-encoder reranking
-- Amazon Bedrock / Amazon Nova integration
-- MCP tool discovery and invocation
-- LangGraph-based agent orchestration
-- hard no-evidence guard for unsupported questions
-- FastAPI REST API
-- structured sources and evidence metadata
-- persistent MCP service
-- retrieval evaluation suite
-- automated API tests
-- Docker containerisation
-- ARM64 CPU-only container optimisation
-- Amazon ECR image storage and scanning
-- Amazon ECS Fargate deployment
-- Application Load Balancer
-- IAM task-role authentication
-- CloudWatch container logging
-- Terraform Infrastructure as Code
-- GitHub Actions CI
-- GitHub Actions continuous deployment
-- GitHub OIDC authentication to AWS
-- short-lived AWS deployment credentials
-- commit-SHA container image tagging
-- automated ECS rolling deployments
-- automated ECS service-stability checks
-- automated ALB target-health verification
-
----
-
-## Agent Routing
-
-The LangGraph workflow supports three main paths.
-
-### General Question
-
-```text
-User
-  |
-  v
-Bedrock
-  |
-  v
-end_turn
-  |
-  v
-Final Answer
-```
-
-No MCP tool is required.
-
-### Knowledge-Base Question
-
-```text
-User
-  |
-  v
-Bedrock
-  |
-  v
-tool_use
-  |
-  v
-MCP
-  |
-  v
-RAG Retrieval
-  |
-  v
-Evidence Found
-  |
-  v
-Bedrock
-  |
-  v
-Grounded Answer
-```
-
-### Unsupported Knowledge-Base Question
-
-```text
-User
-  |
-  v
-Bedrock
-  |
-  v
-tool_use
-  |
-  v
-MCP
-  |
-  v
-RAG Retrieval
-  |
-  v
-No Evidence
-  |
-  v
-Hard LangGraph Guard
-  |
-  v
-Fixed Abstention Response
-```
-
-The no-evidence path stops before the model can generate unsupported information.
-
----
-
-## Knowledge Base
-
-The current knowledge base contains documentation from several infrastructure and platform engineering projects:
-
-- Azure infrastructure lab
-- CloudOps Command Center
-- Platform Engineering Observability
-- PlatformPilot
-
-Source documents are stored under:
-
-```text
-data/
-```
-
-Generated retrieval index files are stored under:
-
-```text
-index/
-```
-
-The generated `index/` directory is intentionally excluded from Git and is rebuilt during the Docker image build.
-
----
-
-## Retrieval Pipeline
-
-The retrieval system uses multiple stages:
-
-```text
-Question
-  |
-  v
-Embedding
-  |
-  +-------------------+
-  |                   |
-  v                   v
-Semantic Search   Keyword Search
-  |                   |
-  +---------+---------+
-            |
-            v
-       Hybrid Score
-            |
-            v
-     Candidate Results
-            |
-            v
-   Cross-Encoder Reranker
-            |
-            v
-    Relevance Filtering
-            |
-            v
-      Grounded Context
-```
-
-Embedding model:
-
-```text
-sentence-transformers/all-MiniLM-L6-v2
-```
-
-Reranker:
-
-```text
-cross-encoder/ms-marco-MiniLM-L-6-v2
-```
-
-The vector index is stored locally using NumPy arrays and accompanying JSON chunk metadata.
-
----
-
-## Container Security and Optimisation
-
-The first Docker build pulled the default PyTorch dependency stack, including large CUDA/NVIDIA libraries that were unnecessary for an ARM64 CPU-only Fargate workload.
-
-The original image was approximately:
-
-```text
-Local Docker image: ~9.94 GB
-ECR compressed size: ~3.5 GB
-```
-
-Inspection showed several gigabytes were consumed by:
-
-```text
-nvidia
-triton
-torch
-```
-
-The image was rebuilt using **CPU-only PyTorch for ARM64**, removing the unused NVIDIA/CUDA stack.
-
-The optimized deployment image is approximately:
-
-```text
-ECR image size: ~586 MB
-Architecture:   arm64/linux
-PyTorch:        CPU only
-CUDA:           disabled
-```
-
-The image also:
-
-- uses `python:3.11-slim-trixie`
-- installs current Debian security package updates during the build
-- builds the RAG index into the container
-- caches the embedding model
-- caches the cross-encoder reranker
-- avoids Docker provenance/attestation for the single-platform deployment image
-
-### ECR Security Scan
-
-<p align="center">
-  <img
-    src="docs/images/ecr-security-scan.png"
-    alt="Amazon ECR vulnerability scan for the optimized ARM64 image"
-    width="1100"
-  >
-</p>
-
-The documented deployment image scan completed with:
-
-```text
-Critical: 0
-High:     2
-Medium:   1
-Low:      1
-```
-
-The remaining high-severity findings were reviewed as operating-system package findings.
-
-They were tracked rather than force-patched using packages outside the configured Debian repositories.
-
----
-
-## Project Structure
-
-```text
-rag-ops-assistant/
-├── .github/
-│   └── workflows/
-│       ├── tests.yml
-│       └── deploy.yml
-│
-├── data/
-│   ├── az104-infrastructure-lab.md
-│   ├── cloudops-command-center.md
-│   ├── platform-engineering-observability.md
-│   └── platform-pilot.md
-│
-├── deploy/
-│   └── ecs/
-│       ├── ecs-tasks-trust-policy.json
-│       ├── bedrock-task-policy.example.json
-│       └── ecs-task-definition.example.json
-│
-├── docs/
-│   └── images/
-│       ├── architecture-diagram.png
-│       ├── aws-deployed-rag-query.png
-│       ├── ecr-security-scan.png
-│       ├── ecs-fargate-service.png
-│       ├── grounded-query.png
-│       └── mcp-flow-terminal.png
-│
-├── evals/
-│   └── retrieval_cases.json
-│
-├── infra/
-│   └── terraform/
-│       ├── .terraform.lock.hcl
-│       ├── alb.tf
-│       ├── data.tf
-│       ├── ecr.tf
-│       ├── ecs.tf
-│       ├── github-actions.tf
-│       ├── iam.tf
-│       ├── logs.tf
-│       ├── outputs.tf
-│       ├── providers.tf
-│       ├── security-groups.tf
-│       ├── terraform.tfvars.example
-│       ├── variables.tf
-│       └── versions.tf
-│
-├── src/
-│   ├── __init__.py
-│   ├── agent.py
-│   ├── api.py
-│   ├── evaluate.py
-│   ├── ingest.py
-│   ├── langgraph_agent.py
-│   ├── mcp_agent.py
-│   ├── mcp_server.py
-│   ├── rag_core.py
-│   ├── retrieve.py
-│   └── tools.py
-│
-├── tests/
-│
-├── .dockerignore
-├── .gitignore
-├── Dockerfile
-├── README.md
-├── requirements.txt
-└── requirements-dev.txt
-```
-
----
-
-## Requirements
-
-For local development:
-
-- Python 3.11+
-- AWS account with Amazon Bedrock access
-- AWS CLI credentials/profile configured locally
-
-For infrastructure management:
-
-- Terraform
-- AWS CLI
-
-Create the Python environment:
+General questions can receive a direct Bedrock answer. Documentation questions
+are instructed to use retrieval. When the search tool returns `found: false`,
+LangGraph stops before a further generation call and returns a fixed abstention.
+A tool failure raises a service error and produces a generic HTTP 500 response.
+The guard applies after a search; it does not prove that every model response
+is grounded or that the model always chooses the tool correctly.
+
+## Demonstrated engineering work
+
+- **Evidence retrieval:** section-aware Markdown chunking with repeated headings,
+  hybrid scoring, cross-encoder reranking and stable source/chunk metadata.
+- **Missing-fact handling:** literal-value checks for recognized cloud-ID and
+  duration requests, plus the graph's no-evidence stopping rule.
+- **Measured iteration:** preserved baseline reports, fixed questions and corpus
+  fingerprints, targeted probes and documented remaining limits.
+- **Cloud delivery:** an ARM64 CPU-only image, ECR scanning, separate ECS execution
+  and application roles, ALB routing, CloudWatch logs and Terraform reconciliation.
+- **Deployment identity:** GitHub OIDC with temporary AWS credentials,
+  commit-SHA image tags and ECS service/target-health checks.
+
+The earlier cloud query and deployment evidence remain in the
+[AWS guide](docs/aws-deployment.md#end-to-end-aws-rag-query).
+
+## Validation results
+
+Recorded local validation after the retrieval updates, through **27 October 2026**:
+
+| Check | Result | What it measures |
+| --- | ---: | --- |
+| Deterministic offline tests | **144 passed** | Retrieval, ingestion, tool/graph behaviour, API errors, labels and evaluator reporting with controlled fakes |
+| Fixed retrieval evaluation | **32/32** | Source selection and abstention across 20 supported, 4 ambiguous/cross-project and 8 unsupported questions |
+| Existing targeted probes | **12/12** | Paraphrases and concept/value boundaries |
+| Additional terminology cases | **12/12** | Supported wording and six nearby missing-fact questions |
+| Live AWS smoke checks | **4 HTTP 200 responses** | Two supported responses with evidence and two fixed refusals through the ALB |
+| Temporary-stack cleanup | **18 destroyed; 0 active test infrastructure** | AWS absence checks, zero managed state and preserved existing network |
+
+Exact reference coverage is a separate diagnostic: **17/24**, **7/9** and **6/6**
+answerable cases respectively. A matching filename alone can miss a required
+fact; equivalent wording can also miss an exact reference quote.
+
+The fixed evaluation improved from **30/32 to 32/32** without changing its
+questions or documents. The existing probes improved from **11/12 to 12/12**
+after a narrow terminology retry. These development cases informed the changes;
+these numbers are **not independent held-out accuracy or generated-answer quality**.
+CI runs fake-model tests, not the real-model retrieval evaluations.
+
+The live Private DNS response exposed a citation-format limitation: it used
+`[1]` and `[3]` while the returned evidence listed chunks `9`, `10` and `30`.
+Its HTTP/source check passed; exact inline citation alignment did not. The live
+smoke checks are not a generated-answer accuracy benchmark. See the
+[recorded limitation](docs/live-verification.md#observed-limitation).
+
+See the [scoring rubric and baseline](docs/retrieval-evaluation.md),
+[section retrieval comparison](docs/retrieval-improvement.md),
+[terminology results](docs/terminology-retrieval.md) and
+[latest model report](docs/terminology-main.json).
+
+## Quick start: offline tests
+
+Use **Python 3.11**, the version used for recorded validation and CI.
+Dependency installation needs package-network access. Once installed, the tests
+require no AWS account, cloud credentials, model downloads or ingested index.
 
 ```bash
-python -m venv .venv
+git clone https://github.com/AZ1600/rag-ops-assistant.git
+cd rag-ops-assistant
+python3.11 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
-```
-
-Development/test dependencies:
-
-```bash
 python -m pip install -r requirements-dev.txt
+python -m pytest -q --junitxml=test-results/pytest.xml
 ```
 
----
+The test fixtures block network connections, AWS client construction and real
+model loading. See [test coverage and limits](docs/validation.md).
 
-## Build the RAG Index
+## Run retrieval locally
 
-Run:
+The knowledge base contains four checked-in Markdown snapshots:
+
+| Snapshot | Coverage |
+| --- | --- |
+| [Azure infrastructure lab](data/az104-infrastructure-lab.md) | Private connectivity, DNS, storage access and operational decisions |
+| [CloudOps Command Center](data/cloudops-command-center.md) | Remediation safety, decision traces and persistence |
+| [Platform Engineering Observability](data/platform-engineering-observability.md) | Metrics, logs, traces, SLOs and no-traffic handling |
+| [PlatformPilot](data/platform-pilot.md) | Operational findings, roles, identity and handoff to CloudOps |
+
+These files are curated snapshots, not automatic mirrors of the source projects.
+
+Retrieval uses `all-MiniLM-L6-v2` embeddings and
+`cross-encoder/ms-marco-MiniLM-L-6-v2` reranking. The ignored NumPy/JSON index
+contains **194 chunks** in the recorded run. Hybrid scores combine 75% semantic
+similarity and 25% keyword overlap, admitting up to 8 candidates above `0.35`.
+The literal-value guards run before reranking; up to 3 results must pass `-1.0`.
+Those cross-encoder scores are relevance logits, not probabilities.
+
+When the original reranker rejects every candidate, one curated alias can retry
+“quiet service/application/app” as “idle application”, including plurals. It
+reuses the same candidates and cutoff and preserves the original evidence.
+This targeted retry does not implement general query rewriting.
+
+With both models already cached, build the index and run the three evaluations
+without model downloads or Bedrock calls:
 
 ```bash
-python -m src.ingest
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 \
+  python -m src.ingest
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 \
+  python -m src.evaluate --offline --report eval-results/retrieval.json
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 \
+  python -m src.evaluate --offline --cases evals/retrieval_probes.json \
+  --report eval-results/retrieval-probes.json
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 \
+  python -m src.evaluate --offline --cases evals/terminology_cases.json \
+  --report eval-results/terminology.json
 ```
 
-This reads the Markdown documents in `data/`, keeps Markdown sections separate with their heading context, generates embeddings, and creates the local retrieval index. Rebuild after applying the retrieval update: older index formats are rejected with an ingestion command. The recorded corpus produces 194 chunks.
+On a fresh machine, `python -m src.ingest` and `python -m src.evaluate` can download
+the embedding and reranker models. Offline flags intentionally fail if a required
+model is not cached. Neither evaluation mode invokes Bedrock. Existing section
+indexes can be reused; older chunking metadata stops with a rebuild command.
 
-Generated files are written under:
+Evaluation exits `0` when every source-selection/abstention case passes and `1`
+when any fails, saving the requested report in either case. Reports record case,
+corpus and index fingerprints, model/library versions and retrieval policies.
 
-```text
-index/
-```
+## Run the full assistant with Bedrock
 
----
+The full agent/API additionally needs an AWS profile permitted to invoke the
+configured Bedrock model. **Agent questions make Bedrock calls and can incur
+charges**, including the initial model call before a no-evidence result.
+The source currently selects region `eu-west-2` and model
+`global.amazon.nova-2-lite-v1:0` in [the agent configuration](src/langgraph_agent.py).
 
-## Run Retrieval Evaluation
+With the environment active and the index ready, replace `your-profile` with your
+local profile name:
 
 ```bash
-python -m src.evaluate --offline --report eval-results/retrieval.json
+AWS_PROFILE=your-profile python -m uvicorn src.api:app --reload
 ```
 
-The evaluation dataset contains **32 labelled questions**: 20 supported, four ambiguous or cross-project, and eight unsupported. Each positive label has exact reference passages checked against the four Markdown documents. This uses the actual embedding model and reranker, not Bedrock, and requires a current ingested index. `--offline` requires cached models; omitting it allows model downloads.
-
-The updated local run passes **32/32 source-selection and abstention checks**, compared with the preserved **30/32** baseline on the same questions and documents. Exact reference coverage improves from **12/24 to 17/24 answerable cases**. These are retrieval diagnostics; generated-answer accuracy is not measured.
-
-The update separates Markdown sections, broadens the candidate prefilter from `0.40` to `0.35`, and requires literal values for recognized cloud-ID and quantified-duration requests. The final reranker threshold stays unchanged. These development cases informed the change, so 32/32 is not an unseen-test accuracy claim.
-
-A separate set of 12 targeted probes now passes **12/12**, following the earlier 11/12 result. If the original reranker rejects every candidate, one curated terminology alias can retry “quiet service/application/app” as “idle application”, including plurals. It reuses the same candidates and rejection threshold, and leaves the question and source evidence intact. A further 12 terminology boundary cases improve from **11/12 to 12/12**. These are development checks, not independent held-out accuracy measurements.
-
-The main and probe evaluations exit `0` in the recorded environment. CI validates labels, ingestion, retrieval guards and evaluator behaviour offline, without running real models. See [the rubric](docs/retrieval-evaluation.md), [the section retrieval comparison](docs/retrieval-improvement.md) and [the terminology retry results and limitations](docs/terminology-retrieval.md).
-
----
-
-## Run Automated Tests
-
-```bash
-python -m pytest -v
-```
-
-The offline suite tests the real retrieval functions, knowledge-base search and compiled LangGraph workflow using controlled embeddings, reranker scores, Bedrock responses and MCP responses. API tests additionally check HTTP validation and generic error responses. Test guards block network connections, AWS client construction and real model loading. No ingested index or model downloads are needed.
-
-GitHub Actions runs this suite on pull requests and pushes to `main`, and uploads a JUnit report. See [validation details](docs/validation.md) for coverage and limits.
-
----
-
-## Test the MCP Server
-
-Start the MCP server directly:
-
-```bash
-python -m src.mcp_server
-```
-
-The server exposes:
-
-```text
-search_knowledge_base
-```
-
-The tool accepts:
-
-```text
-question: string
-```
-
-and returns structured fields including:
-
-```text
-found
-message
-context
-sources
-evidence
-```
-
----
-
-## Run the LangGraph Agent
-
-Set an AWS profile with Bedrock access:
-
-```bash
-AWS_PROFILE=<your-aws-profile> python -m src.langgraph_agent
-```
-
-Example question:
-
-```text
-How does the VM securely access Blob Storage?
-```
-
-The current Bedrock integration uses:
-
-```text
-global.amazon.nova-2-lite-v1:0
-```
-
----
-
-## Run the API Locally
-
-Start FastAPI:
-
-```bash
-AWS_PROFILE=<your-aws-profile> \
-python -m uvicorn src.api:app --reload
-```
-
-API documentation:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-Health endpoint:
+The service starts MCP, discovers tools and reuses the compiled graph/connection
+across questions. Open [interactive API docs](http://127.0.0.1:8000/docs), or use:
 
 ```bash
 curl http://127.0.0.1:8000/health
+curl -X POST http://127.0.0.1:8000/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Will a quiet service show zero availability when nobody is using it?"}'
 ```
 
-Expected response:
+Illustrative response shape; answer text and scores depend on the run:
 
 ```json
 {
-  "status": "ok",
-  "service": "rag-ops-assistant"
+  "answer": "...",
+  "sources": ["platform-engineering-observability.md"],
+  "evidence": [{
+    "chunk_number": 112,
+    "source": "platform-engineering-observability.md",
+    "hybrid_score": 0.38,
+    "rerank_score": -0.01
+  }]
 }
 ```
 
----
-
-## Ask a Knowledge-Base Question
-
-```bash
-curl -X POST http://127.0.0.1:8000/ask \
-  -H "Content-Type: application/json" \
-  -d '{"question":"How does the VM securely access Blob Storage?"}'
-```
-
-Example response shape:
-
-```json
-{
-  "answer": "Grounded answer generated from retrieved evidence.",
-  "sources": [
-    "az104-infrastructure-lab.md"
-  ],
-  "evidence": [
-    {
-      "chunk_number": 15,
-      "source": "az104-infrastructure-lab.md",
-      "rerank_score": 6.02,
-      "hybrid_score": 0.58
-    }
-  ]
-}
-```
-
----
-
-## No-Evidence Behaviour
-
-For a question outside the knowledge base:
-
-```bash
-curl -X POST http://127.0.0.1:8000/ask \
-  -H "Content-Type: application/json" \
-  -d '{"question":"What is the company annual leave policy?"}'
-```
-
-The application returns:
+When the search reports no evidence, the graph returns:
 
 ```json
 {
@@ -840,776 +234,113 @@ The application returns:
 }
 ```
 
-This response is enforced by LangGraph control flow rather than relying only on prompt instructions.
+For the interactive agent, run `AWS_PROFILE=your-profile python -m src.langgraph_agent`.
+To start only the retrieval MCP server, run `python -m src.mcp_server`; its
+`search_knowledge_base` tool returns `found`, `message`, `context`, `sources` and
+`evidence`. Docker instructions are in the [AWS/container guide](docs/aws-deployment.md#run-with-docker).
 
----
+## Live AWS evidence
 
-## Run with Docker
+The following screenshots record the **27 October 2026 temporary deployment**.
+The [verification record](docs/live-verification.md) includes exact source/image
+identifiers, captured responses, the model/tool trace and cleanup checks.
 
-The application can run locally as a Docker container.
+### Healthy ECS task and load-balancer target
 
-The production-oriented image:
+![ARM64 task, healthy ALB target, verified image and HTTP 200](docs/images/aws-live-ready.png)
 
-- uses Python 3.11 on Debian Trixie
-- targets ARM64/Linux
-- uses CPU-only PyTorch
-- installs application dependencies
-- applies selected Debian security updates
-- copies the application and knowledge-base documents
-- builds the RAG index
-- caches the embedding model
-- caches the reranker model
-- starts FastAPI on port `8000`
+### Supported question with retrieved evidence
 
-### Build the Image
+The quiet-service question returned the documented no-traffic behaviour and cited
+chunk `112`. The exact question reached the MCP tool unchanged.
 
-```bash
-docker build \
-  --provenance=false \
-  -t rag-ops-assistant:latest .
-```
+![Live quiet-service answer with source and chunk evidence](docs/images/aws-live-supported.png)
 
-Verify the architecture:
+### Missing fact refused
 
-```bash
-docker image inspect rag-ops-assistant:latest \
-  --format '{{.Architecture}}/{{.Os}}'
-```
+The request for an undocumented production tenant ID returned the fixed refusal
+with empty sources and evidence. A missing retention duration was also refused.
 
-Expected:
+![Live tenant-ID question refused without source evidence](docs/images/aws-live-refusal.png)
 
-```text
-arm64/linux
-```
+### Cleanup verified
 
-### Run Locally with AWS Credentials
+At `11:16 UTC`, the test had zero managed resources, no running/pending tasks,
+no load balancer, repository, log group, test security groups or network
+interfaces. Existing VPC/subnets were preserved. One inactive task-definition
+registration remained as deregistered metadata. [Cleanup record](docs/live-evidence/cleanup-summary.json).
 
-For local Docker testing only, mount the AWS credentials directory read-only:
+![Recorded cleanup verification with no active test infrastructure](docs/images/aws-live-cleanup.png)
 
-```bash
-docker run --rm \
-  -p 8001:8000 \
-  -e AWS_PROFILE=<your-aws-profile> \
-  -v "$HOME/.aws:/root/.aws:ro" \
-  rag-ops-assistant:latest
-```
+The earlier API demo, MCP flow, ARM64 image optimization, ECR scan, Terraform
+reconciliation and automated deployment are preserved in the
+[AWS deployment guide](docs/aws-deployment.md).
 
-Then test:
+## AWS deployment and CI/CD
 
-```bash
-curl http://127.0.0.1:8001/health
-```
+The previously validated deployment used **Linux ARM64 Fargate, 1 vCPU and 2 GB
+memory**, behind an ALB restricted to the owner's `/32` address. The task accepted
+port `8000` from the ALB security group. ECR held the image and CloudWatch collected
+container logs. Terraform managed the long-lived infrastructure; GitHub Actions
+managed application image and task-definition revisions.
 
-and:
+GitHub Actions runs the offline suite on pull requests and pushes to `main`,
+with read-only repository permissions and a JUnit artifact. Automatic deployment
+requires a successful `Tests` run on `main`, deployment-relevant changes and
+`ENABLE_AUTOMATIC_ECS_DEPLOY` set to exactly `true`. Leaving it unset or `false`
+keeps automatic deployment disabled. Documentation-only changes are outside the
+workflow's automatic deployment file filter.
 
-```bash
-curl -X POST http://127.0.0.1:8001/ask \
-  -H "Content-Type: application/json" \
-  -d '{"question":"How does the VM securely access Blob Storage?"}'
-```
+A manual **Run workflow** on `main` is an explicit deployment request and does
+not wait for a new test run. Check the selected revision's Tests first. Deployment
+gating does not stop running AWS resources or determine their current costs.
 
-### AWS Credentials on ECS
+Read the [AWS deployment guide and recorded evidence](docs/aws-deployment.md) for
+architecture, Docker, IAM/OIDC, networking, Terraform, deployment stages, earlier
+image scan results and service/ALB screenshots.
 
-AWS credentials are **not mounted into the ECS container** and are not baked into the image.
+## Scope and limitations
 
-Boto3 automatically receives temporary credentials from the ECS task role:
+- **Evidence scope:** the corpus is four project snapshots. It does not contain
+  live production IDs, current queue counts or a complete operations knowledge base.
+- **Retrieval:** the curated alias and literal-value guards recognize limited
+  wording/formats. A value's presence does not establish that it belongs to the
+  requested production system. Unseen paraphrases can still fail.
+- **Generation:** local evaluations measure retrieval and control flow. Four
+  live examples do not establish answer accuracy; the Private DNS inline citation
+  mismatch is recorded. Prompt-injection resistance was not measured.
+- **API exposure:** the API has no application authentication, authorization or
+  rate limiting. The documented owner-restricted ALB was a personal deployment.
+- **Deployment evidence:** the latest temporary stack was removed after its
+  checks. Earlier scan results and automated delivery evidence are historical;
+  this manual session did not rerun GitHub Actions deployment or image scanning.
 
-```text
-Fargate Task
-     |
-     v
-ECS Task Role
-     |
-     v
-Temporary AWS Credentials
-     |
-     v
-Amazon Bedrock
-```
+Possible next work includes inline citation validation, independent evaluation
+cases, generated-answer assessment, API access controls, prompt-injection testing, retrieval latency
+measurement, Terraform PR validation and production deployment protections.
 
-This removes the need to store static AWS access keys inside the deployed container.
-
----
-
-## Amazon ECR
-
-The optimized ARM64 image is stored in Amazon ECR.
-
-Automated deployments use the Git commit SHA as the image tag:
+## Repository map
 
 ```text
-rag-ops-assistant:<commit-sha>
+src/                Retrieval, ingestion, MCP, LangGraph and FastAPI
+data/               Four documentation snapshots
+evals/              Fixed cases, targeted probes and terminology cases
+tests/              Deterministic offline regression suite
+docs/               Evaluation reports, explanations and deployment evidence
+deploy/ecs/         Example task definitions and IAM policies
+infra/terraform/    AWS infrastructure and GitHub OIDC configuration
+.github/workflows/  Tests and opt-in ECS deployment
 ```
 
-This creates a direct relationship between:
-
-```text
-Git commit
-    |
-    v
-ECR image
-    |
-    v
-ECS task-definition revision
-    |
-    v
-Running deployment
-```
-
-This also makes deployment history and rollback candidates easier to identify.
-
-ECR scan-on-push is enabled for the repository.
-
----
-
-## ECS Deployment Configuration
-
-Reusable example deployment files are stored under:
-
-```text
-deploy/ecs/
-```
-
-The examples use placeholders such as:
-
-```text
-<AWS_ACCOUNT_ID>
-<AWS_REGION>
-```
-
-rather than publishing account-specific values.
-
-### ECS Task Definition
-
-The task definition uses:
-
-```text
-Launch type:        FARGATE
-Operating system:   LINUX
-CPU architecture:   ARM64
-CPU:                1024
-Memory:             2048 MiB
-Network mode:       awsvpc
-Container port:     8000
-```
-
-### Runtime IAM Roles
-
-Two different runtime roles are used.
-
-```text
-ECS Execution Role
-    |
-    +--> Pull image from ECR
-    |
-    +--> Write logs to CloudWatch
-
-
-ECS Task Role
-    |
-    +--> Invoke Amazon Bedrock
-```
-
-This separates infrastructure permissions from application permissions.
-
----
-
-## Networking and Security
-
-The current personal deployment uses an internet-facing Application Load Balancer.
-
-Traffic is restricted as follows:
-
-```text
-Owner public IP /32
-        |
-        | HTTP :80
-        v
-Application Load Balancer
-        |
-        | TCP :8000
-        v
-Fargate Task
-```
-
-The ALB security group accepts HTTP only from the owner's current `/32` address.
-
-The task security group accepts TCP port `8000` only from the ALB security group.
-
-The task therefore cannot be reached directly from the internet even though it currently has a public IP assigned by Fargate.
-
-For a larger production deployment, the task could be moved into private subnets and outbound dependencies handled through NAT or VPC endpoints.
-
----
-
-## CloudWatch Logging
-
-The Fargate container uses the `awslogs` log driver.
-
-Logs are written to:
-
-```text
-/ecs/rag-ops-assistant
-```
-
-This provides centralized visibility into:
-
-- application startup
-- MCP initialization
-- Bedrock calls
-- agent errors
-- container failures
-
----
-
-## Infrastructure as Code
-
-The AWS deployment is managed with **Terraform**.
-
-Terraform configuration is stored under:
-
-```text
-infra/terraform/
-```
-
-Terraform manages:
-
-- Amazon ECR repository
-- ECS cluster
-- ECS service configuration
-- bootstrap ECS task definition
-- ECS execution role
-- ECS application task role
-- scoped Amazon Bedrock permissions
-- CloudWatch log group
-- Application Load Balancer
-- ALB listener
-- target group
-- ALB security group
-- Fargate task security group
-- GitHub Actions OIDC provider
-- GitHub Actions deployment IAM role
-- GitHub Actions deployment IAM policy
-
-The default VPC and existing public subnets are discovered through Terraform data sources rather than recreated.
-
-### Terraform Structure
-
-```text
-infra/terraform/
-├── .terraform.lock.hcl
-├── alb.tf
-├── data.tf
-├── ecr.tf
-├── ecs.tf
-├── github-actions.tf
-├── iam.tf
-├── logs.tf
-├── outputs.tf
-├── providers.tf
-├── security-groups.tf
-├── terraform.tfvars.example
-├── variables.tf
-└── versions.tf
-```
-
-### Terraform and CI/CD Ownership
-
-Terraform owns the long-lived infrastructure configuration.
-
-GitHub Actions owns application image deployment revisions.
-
-```text
-Terraform
-  |
-  +--> ECR repository
-  +--> IAM
-  +--> ALB / target group / listener
-  +--> security groups
-  +--> ECS cluster
-  +--> ECS service configuration
-  +--> CloudWatch
-  +--> GitHub OIDC infrastructure
-
-
-GitHub Actions
-  |
-  +--> build application image
-  +--> push commit-SHA image to ECR
-  +--> register new task-definition revision
-  +--> update ECS service
-```
-
-Terraform ignores CI-managed task-definition image revisions so a later infrastructure plan does not roll the running application back to an older image.
-
-### Local Terraform Usage
-
-Create a local variables file:
-
-```bash
-cp infra/terraform/terraform.tfvars.example \
-   infra/terraform/terraform.tfvars
-```
-
-Update it with your AWS profile and the CIDR allowed to reach the personal-project ALB:
-
-```hcl
-aws_region       = "eu-west-2"
-aws_profile      = "<your-aws-profile>"
-alb_allowed_cidr = "<YOUR_PUBLIC_IP>/32"
-```
-
-The real `terraform.tfvars` file and Terraform state files are intentionally excluded from Git.
-
-Initialize Terraform:
-
-```bash
-terraform -chdir=infra/terraform init
-```
-
-Format and validate:
-
-```bash
-terraform -chdir=infra/terraform fmt -check
-terraform -chdir=infra/terraform validate
-```
-
-Preview infrastructure changes:
-
-```bash
-terraform -chdir=infra/terraform plan
-```
-
-The existing AWS deployment was imported into Terraform state and reconciled with the configuration.
-
-Zero-drift verification produced:
-
-```text
-No changes. Your infrastructure matches the configuration.
-```
-
----
-
-## Continuous Integration
-
-The project uses:
-
-```text
-.github/workflows/tests.yml
-```
-
-Pull requests and repository changes run the automated Python test suite.
-
-The offline tests cover:
-
-- HTTP health, request validation, evidence responses and generic service errors
-- keyword and semantic score combination, ranking thresholds and source metadata
-- reranking order, rejection thresholds and context formatting
-- knowledge-base refusal when candidates or reranked evidence are insufficient
-- the real compiled LangGraph tool route and hard no-evidence guard
-- MCP errors, unknown tools and state isolation between separate questions
-- evaluation source metrics and command exit codes for passing and failing suites
-
-Run locally with:
-
-```bash
-python -m pytest -v --junitxml=test-results/pytest.xml
-```
-
-Validated locally: **144 passed**. These deterministic checks do not measure the
-accuracy of the real embedding model or the quality of generated answers.
-
----
-
-## Continuous Deployment
-
-The deployment workflow is stored at:
-
-```text
-.github/workflows/deploy.yml
-```
-
-Automatic deployment is **disabled by default**. A successful `Tests` run on `main`
-can start deployment only when the repository Actions variable
-`ENABLE_AUTOMATIC_ECS_DEPLOY` is exactly `true` and deployment-relevant files changed.
-Leave this variable unset or `false` while working on offline validation.
-
-The existing **Run workflow** action remains available on `main`; it is an explicit
-AWS deployment request and does not wait for a new test run. Confirm that the
-selected `main` revision has passed Tests before using it. This update does not
-stop existing AWS resources or change their running costs.
-
-The pipeline performs:
-
-```text
-Tests succeed on main + automatic deployment enabled
-(or an explicit manual run on main)
-        |
-        v
-Resolve deployment SHA
-        |
-        v
-Checkout exact revision
-        |
-        v
-Authenticate to AWS through OIDC
-        |
-        v
-Verify AWS identity
-        |
-        v
-Log in to Amazon ECR
-        |
-        v
-Build native ARM64 image
-        |
-        v
-Push commit-SHA image
-        |
-        v
-Download current ECS task definition
-        |
-        v
-Render new image into task definition
-        |
-        v
-Register new task-definition revision
-        |
-        v
-Update ECS service
-        |
-        v
-Wait for service stability
-        |
-        v
-Verify ALB target health
-```
-
-The workflow uses a native ARM64 GitHub-hosted runner, matching the Fargate runtime architecture.
-
----
-
-## GitHub OIDC Authentication
-
-The deployment workflow does **not** use stored AWS access keys.
-
-Authentication works as follows:
-
-```text
-GitHub Actions
-      |
-      | OIDC token
-      v
-AWS STS
-      |
-      | temporary credentials
-      v
-GitHub Deployment IAM Role
-      |
-      +--> ECR
-      +--> ECS
-      +--> IAM PassRole
-      +--> ALB target-health reads
-```
-
-The OIDC trust relationship is restricted to this repository's `main` branch.
-
-The deployment role is limited to the permissions required by the pipeline:
-
-- obtain an ECR authorization token
-- push images to the project ECR repository
-- describe and register ECS task definitions
-- describe and update the ECS service
-- pass only the ECS execution and task roles
-- read ALB target-group and target-health information
-
-The GitHub repository stores only:
-
-```text
-AWS_DEPLOY_ROLE_ARN
-```
-
-No long-lived AWS access key or secret access key is stored in GitHub.
-
-Because the ALB is restricted to the owner's `/32`, the GitHub-hosted runner validates deployment health through the AWS ELB target-health API rather than directly accessing the ALB URL.
-
----
-
-## Verified Automated Deployment
-
-The first end-to-end automated deployment previously completed successfully. The evidence below documents that earlier run; it is not a new live deployment check. Automatic deployment now requires the opt-in variable described above.
-
-The following GitHub Actions stages passed:
-
-```text
-Resolve deployment SHA             ✅
-Checkout deployed revision         ✅
-Configure AWS credentials          ✅
-Verify AWS identity                ✅
-Log in to Amazon ECR               ✅
-Build and push ARM64 image         ✅
-Download current task definition   ✅
-Render new image                   ✅
-Deploy ECS task definition         ✅
-Verify ALB target health           ✅
-```
-
-This validates the complete delivery path:
-
-```text
-Git commit
-    |
-    v
-GitHub Actions Tests
-    |
-    v
-GitHub OIDC
-    |
-    v
-AWS
-    |
-    v
-ARM64 Docker Build
-    |
-    v
-Amazon ECR
-    |
-    v
-New ECS Task Revision
-    |
-    v
-Fargate Rolling Deployment
-    |
-    v
-Healthy ALB Target
-```
-
----
-
-## Technology Stack
-
-| Component | Technology |
-|---|---|
-| API | FastAPI |
-| Agent orchestration | LangGraph |
-| LLM | Amazon Bedrock / Amazon Nova |
-| Bedrock model | Amazon Nova 2 Lite |
-| Tool protocol | MCP |
-| Embeddings | Sentence Transformers |
-| Reranking | Cross Encoder |
-| Retrieval | Hybrid semantic + keyword search |
-| Vector storage | NumPy local index |
-| Validation | Pydantic |
-| AWS SDK | boto3 |
-| Container runtime | Docker |
-| Container registry | Amazon ECR |
-| Compute | Amazon ECS / AWS Fargate |
-| CPU architecture | ARM64 |
-| Load balancing | Application Load Balancer |
-| Logging | Amazon CloudWatch |
-| Runtime identity | AWS IAM |
-| Infrastructure as Code | Terraform |
-| CI | GitHub Actions |
-| CD | GitHub Actions |
-| CI/CD AWS authentication | GitHub OIDC + AWS STS |
-
----
-
-## Tested Python Dependency Versions
-
-```text
-boto3==1.43.104
-fastapi==0.141.1
-langgraph==1.2.12
-mcp[cli]==2.2.0
-numpy==2.4.6
-pydantic==2.13.5
-sentence-transformers==6.1.0
-uvicorn==0.54.0
-```
-
-The Docker image installs a CPU-only PyTorch build separately to avoid unnecessary CUDA/NVIDIA dependencies.
-
----
-
-## Design Principles
-
-The project separates responsibilities across layers:
-
-```text
-RAG
-= retrieves relevant evidence
-
-MCP
-= standardizes retrieval as a tool
-
-Bedrock
-= selects tools and generates responses
-
-LangGraph
-= controls state, routing, loops, and guardrails
-
-FastAPI
-= exposes the system through an HTTP API
-
-ECS Fargate
-= runs the containerized application
-
-IAM
-= supplies temporary AWS permissions
-
-ALB
-= provides routing and health checks
-
-Terraform
-= manages long-lived AWS infrastructure
-
-GitHub Actions
-= tests and deploys application revisions
-
-GitHub OIDC
-= provides keyless CI/CD authentication to AWS
-```
-
-A key design decision is that unsupported retrieval results are handled with application-level control flow:
-
-```text
-found = False
-     |
-     v
-LangGraph END
-     |
-     v
-Fixed Abstention Response
-```
-
-This prevents the model from generating unsupported information after the retrieval layer reports that no evidence exists.
-
----
-
-## Current Status
-
-The following flows have been tested successfully:
-
-- health endpoint
-- general direct-answer route
-- known knowledge-base retrieval route
-- unknown knowledge-base abstention route
-- MCP tool discovery
-- MCP tool execution
-- persistent MCP service reuse
-- structured sources and evidence
-- empty-question validation
-- retrieval evaluation
-- automated API tests
-- GitHub Actions CI
-- Docker containerisation
-- ARM64 CPU-only PyTorch optimisation
-- local container `/health`
-- local container `/ask`
-- Amazon ECR image push
-- Amazon ECR vulnerability scanning
-- zero-critical documented deployment image
-- ECS task definition registration
-- ARM64 Fargate execution
-- ECS service deployment
-- IAM task-role authentication to Amazon Bedrock
-- CloudWatch container logging
-- Application Load Balancer routing
-- ALB health checks
-- end-to-end `/ask` request through the ALB
-- security-group isolation between the ALB and Fargate task
-- Terraform import of existing AWS infrastructure
-- Terraform zero-drift reconciliation
-- Terraform-managed GitHub OIDC provider
-- least-privilege GitHub Actions AWS role
-- GitHub OIDC authentication
-- native ARM64 GitHub-hosted build
-- commit-SHA image tagging
-- automated ECR image push
-- automated ECS task-definition registration
-- automated ECS rolling deployment
-- automated ECS service-stability wait
-- automated ALB target-health verification
-- successful end-to-end deployment triggered from `main`
-
----
-
-## Future Improvements
-
-Possible next iterations include:
-
-- HTTPS with a custom domain and AWS Certificate Manager
-- authentication and authorization for the API
-- remote Terraform state and state locking
-- Terraform plan validation in pull requests
-- GitHub Environment protection for production deployments
-- automated rollback workflow
-- ECR image lifecycle policies
-- ECR enhanced vulnerability scanning
-- LangGraph tracing and distributed observability
-- CloudWatch alarms and alerting
-- ECS/Fargate autoscaling
-- private-subnet task deployment
-- VPC endpoints for AWS service access
-- richer API rate limiting
-- additional operational MCP tools
-- expanded knowledge-base documents
-- larger retrieval evaluation datasets
-
----
-
-## Security Notes
-
-This repository does not contain AWS access keys or secret credentials.
-
-The ECS application uses temporary IAM task-role credentials provided dynamically by AWS.
-
-The GitHub Actions deployment pipeline uses GitHub OIDC and AWS STS to obtain short-lived deployment credentials.
-
-Long-lived AWS access keys are not stored as GitHub Actions secrets.
-
-Account-specific deployment values should not be committed to the public repository.
-
-The example files under:
-
-```text
-deploy/ecs/
-```
-
-use placeholders for values such as:
-
-```text
-<AWS_ACCOUNT_ID>
-<AWS_REGION>
-```
-
-The following Terraform files are intentionally excluded from Git:
-
-```text
-terraform.tfvars
-*.tfstate
-*.tfstate.*
-.terraform/
-*.tfplan
-```
-
-The Terraform provider lock file is committed:
-
-```text
-infra/terraform/.terraform.lock.hcl
-```
-
-Screenshots used in this README redact account identifiers, public IP addresses, and other deployment-specific values where appropriate.
-
----
+Pinned application dependencies are in [requirements.txt](requirements.txt);
+test dependencies are in [requirements-dev.txt](requirements-dev.txt).
+The Dockerfile installs CPU-only PyTorch separately. Generated `index/`, local
+`eval-results/`, test artifacts, credentials and Terraform state are not intended
+as source-controlled project files.
 
 ## Author
 
 **Olawale Azeez**
 
-AWS Certified Developer – Associate
-AWS Certified Solutions Architect – Associate
+AWS Certified Developer – Associate · AWS Certified Solutions Architect – Associate ·
 AWS Certified Cloud Practitioner
-
-Cloud Engineer | Platform Engineer | DevOps Engineer

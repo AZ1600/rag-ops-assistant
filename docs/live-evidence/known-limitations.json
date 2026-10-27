@@ -1,0 +1,5 @@
+{
+  "case": "private-dns",
+  "observation": "The answer uses inline labels [1] and [3], but evidence metadata lists chunks 9, 10 and 30. This live smoke check validates HTTP, expected source and evidence, not full semantic/citation faithfulness.",
+  "follow_up": "Validate or enforce generated inline citations against returned chunk IDs in a separate local change."
+}

@@ -1,0 +1,19 @@
+{
+  "checked_at_utc": "2026-10-27T10:59:37.832039+00:00",
+  "region": "eu-west-2",
+  "stack": "rag-live-20261027",
+  "source_revision": "6956bc2",
+  "architecture": "ARM64",
+  "desired_tasks": 1,
+  "running_tasks": 1,
+  "pending_tasks": 0,
+  "healthy_alb_targets": 1,
+  "image_digest_verified": true,
+  "http_health": {
+    "status_code": 200,
+    "body": {
+      "status": "ok",
+      "service": "rag-ops-assistant"
+    }
+  }
+}

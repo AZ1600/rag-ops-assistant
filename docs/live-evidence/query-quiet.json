@@ -1,0 +1,22 @@
+{
+  "started_at_utc": "2026-10-27T11:01:52.277095+00:00",
+  "case": "quiet",
+  "source_revision": "6956bc2",
+  "question": "Will a quiet service show zero availability when nobody is using it?",
+  "http_status": 200,
+  "elapsed_seconds": 2.08,
+  "response": {
+    "answer": "No, a quiet service will not show zero availability when nobody is using it. \n\nAccording to the Platform Engineering Observability documentation, no application traffic is not treated as a service failure. The Service Level Indicator (SLI) rules only emit values when application traffic exists. When there are no requests, no new SLI samples are generated, which prevents an idle application from incorrectly appearing as 0% available[112].",
+    "sources": [
+      "platform-engineering-observability.md"
+    ],
+    "evidence": [
+      {
+        "chunk_number": 112,
+        "source": "platform-engineering-observability.md",
+        "rerank_score": -0.010394789278507233,
+        "hybrid_score": 0.38063863664865494
+      }
+    ]
+  }
+}

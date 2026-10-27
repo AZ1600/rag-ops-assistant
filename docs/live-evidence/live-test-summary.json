@@ -1,0 +1,18 @@
+{
+  "captured_at_utc": "2026-10-27T11:07:13.256097+00:00",
+  "source_revision": "6956bc2",
+  "live_api_requests": 4,
+  "http_200_responses": 4,
+  "fixed_abstentions": 2,
+  "bedrock_node_log_entries": 6,
+  "mcp_tool_requests": 4,
+  "evidence_found_true_log_entries": 2,
+  "evidence_found_false_log_entries": 2,
+  "tool_questions": [
+    "Will a quiet service show zero availability when nobody is using it?",
+    "What is the production Microsoft Entra tenant ID used by PlatformPilot SSO?",
+    "How does Private DNS help the VM reach Blob Storage?",
+    "How many days are production Loki logs retained in the observability platform?"
+  ],
+  "quiet_question_seen_verbatim_in_tool_log": true
+}

@@ -1,0 +1,19 @@
+{
+  "checked_at_utc": "2026-10-27T11:16:34.772907+00:00",
+  "stack": "rag-live-20261027",
+  "region": "eu-west-2",
+  "terraform_managed_resources": 0,
+  "active_ecs_clusters": 0,
+  "running_or_pending_tasks": 0,
+  "load_balancer_absent": true,
+  "target_group_absent": true,
+  "image_repository_absent": true,
+  "log_group_absent": true,
+  "test_security_groups": 0,
+  "test_network_interfaces": 0,
+  "test_iam_roles_absent": true,
+  "active_task_definitions": 0,
+  "inactive_task_definition_registrations": 1,
+  "evidence_preserved_locally": true,
+  "existing_vpc_and_subnets_preserved": true
+}
