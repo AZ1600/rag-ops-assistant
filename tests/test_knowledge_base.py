@@ -86,3 +86,22 @@ def test_tool_refuses_unsupported_identifier_without_passing_background_as_evide
     assert result["sources"] == result["evidence"] == []
     assert result["context"] == ""
     assert calls["predict"] == []
+
+
+def test_tool_retries_only_reranking_and_returns_original_evidence(knowledge_base, monkeypatch):
+    tool, calls = knowledge_base
+    def predict(pairs):
+        calls["predict"].append(pairs)
+        if len(calls["predict"]) == 1:
+            return np.array([-9.0] * len(pairs))
+        return np.array([2.0] + [-9.0] * (len(pairs) - 1))
+    monkeypatch.setattr(tool.reranker, "predict", predict)
+    question = "How does a quiet service resolve private DNS?"
+    result = tool.search(question)
+    assert result["found"] is True
+    assert result["sources"] == ["network.md"]
+    assert result["context"] == "[Chunk 1]\nSource: network.md\nprivate dns"
+    assert result["evidence"][0]["rerank_score"] == 2.0
+    assert calls["encode"] == [(question, True)]
+    assert len(calls["predict"]) == 2
+    assert calls["predict"][1][0] == ["How does an idle application resolve private DNS?", "private dns"]

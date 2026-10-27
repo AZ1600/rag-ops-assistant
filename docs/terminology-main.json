@@ -1,0 +1,944 @@
+{
+  "schema_version": 1,
+  "scoring": {
+    "pass": "Expected sources all returned, no unexpected sources; unsupported questions return no chunks.",
+    "reference_coverage": "Diagnostic exact normalized quote coverage; equivalent wording can be missed. Not answer accuracy."
+  },
+  "dataset_sha256": "fdde464a5af56a533cc58f2f30a69208daceb3004eb8c411ad634714298aa3b8",
+  "corpus_sha256": {
+    "az104-infrastructure-lab.md": "8dcdd4e3f4e07f986d38a7f49a7a109c0141159019129bd6a8c28c4f828c4f99",
+    "cloudops-command-center.md": "3d88391bf39da154a18f132f63f561f58274f981a1cd634933faeef61841a962",
+    "platform-engineering-observability.md": "c1040a49ecfb70cd7930bbf5b1f5e980b0715d77f214cb9a49823676f535b7f3",
+    "platform-pilot.md": "f936ee8a3708ce8102a246b96616d5033eb6b9051a2258922f51f55f7f62bdb8"
+  },
+  "index_sha256": {
+    "chunks.json": "776bd65f195a02c7bd88fc74a56c6aa1a4bb6ff994e462f830e478b2b00a593b",
+    "embeddings.npy": "db348dcc68d45aa3b0d5051df1b3ffbd849d56afb4aebca4609f07a83b23aa85"
+  },
+  "models": {
+    "embedding": "all-MiniLM-L6-v2",
+    "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  },
+  "retrieval_policy": {
+    "chunking": "markdown-sections-v1",
+    "grounding": "literal-cloud-ids-duration-v1",
+    "reranking": "quiet-service-alias-v1"
+  },
+  "versions": {
+    "python": "3.11.14",
+    "sentence-transformers": "6.1.0",
+    "transformers": "5.17.0",
+    "torch": "2.14.0"
+  },
+  "parameters": {
+    "candidate_count": 8,
+    "hybrid_min_score": 0.35,
+    "top_n": 3,
+    "rerank_min_score": -1.0
+  },
+  "summary": {
+    "passed": 32,
+    "total": 32,
+    "categories": {
+      "supported": {
+        "passed": 20,
+        "total": 20
+      },
+      "ambiguous": {
+        "passed": 4,
+        "total": 4
+      },
+      "unsupported": {
+        "passed": 8,
+        "total": 8
+      }
+    },
+    "reference_coverage": {
+      "covered": 17,
+      "total": 24
+    }
+  },
+  "cases": [
+    {
+      "id": "cloudops-safety",
+      "category": "supported",
+      "question": "How does CloudOps prevent unsafe remediation?",
+      "expected_sources": [
+        "cloudops-command-center.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": false
+      },
+      "results": [
+        {
+          "chunk_number": 60,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.5046937316656113,
+          "rerank_score": 1.2750036716461182
+        },
+        {
+          "chunk_number": 81,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.5162845849990845,
+          "rerank_score": 0.8583755493164062
+        },
+        {
+          "chunk_number": 62,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.5144006460905075,
+          "rerank_score": -0.3938812017440796
+        }
+      ]
+    },
+    {
+      "id": "cloudops-trace",
+      "category": "supported",
+      "question": "What are the five steps in a CloudOps Decision Trace, and can the trace execute a change?",
+      "expected_sources": [
+        "cloudops-command-center.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 64,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.7179129421710968,
+          "rerank_score": 7.453503131866455
+        },
+        {
+          "chunk_number": 67,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.6813203692436218,
+          "rerank_score": 6.140739917755127
+        },
+        {
+          "chunk_number": 66,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.5680662989616394,
+          "rerank_score": 0.9611594676971436
+        }
+      ]
+    },
+    {
+      "id": "cloudops-request-id",
+      "category": "supported",
+      "question": "What happens when a CloudOps API caller does not supply x-request-id?",
+      "expected_sources": [
+        "cloudops-command-center.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 72,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.5707623745713915,
+          "rerank_score": 4.181036949157715
+        }
+      ]
+    },
+    {
+      "id": "cloudops-persistence",
+      "category": "supported",
+      "question": "What persistence does the CloudOps repository use locally if Postgres is not configured?",
+      "expected_sources": [
+        "cloudops-command-center.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 70,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.4570349372095532,
+          "rerank_score": 1.8724980354309082
+        },
+        {
+          "chunk_number": 73,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.454769018623564,
+          "rerank_score": 1.0004338026046753
+        }
+      ]
+    },
+    {
+      "id": "cloudops-runbooks",
+      "category": "supported",
+      "question": "Where are CloudOps remediation safety checks and rollback plans documented?",
+      "expected_sources": [
+        "cloudops-command-center.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 81,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.6731525787285396,
+          "rerank_score": 4.977612018585205
+        },
+        {
+          "chunk_number": 71,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.6458513992173331,
+          "rerank_score": 1.8722426891326904
+        },
+        {
+          "chunk_number": 60,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.4624079210417611,
+          "rerank_score": -0.5197281241416931
+        }
+      ]
+    },
+    {
+      "id": "azure-private-dns",
+      "category": "supported",
+      "question": "How does Private DNS help the VM reach Blob Storage?",
+      "expected_sources": [
+        "az104-infrastructure-lab.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 9,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.6608018960271562,
+          "rerank_score": 6.603145599365234
+        },
+        {
+          "chunk_number": 10,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.5125296296817916,
+          "rerank_score": 5.373354911804199
+        },
+        {
+          "chunk_number": 30,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.6420550452811378,
+          "rerank_score": 4.285429954528809
+        }
+      ]
+    },
+    {
+      "id": "azure-bastion",
+      "category": "supported",
+      "question": "How can an administrator reach the Azure lab VM without assigning it a public IP?",
+      "expected_sources": [
+        "az104-infrastructure-lab.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": false
+      },
+      "results": [
+        {
+          "chunk_number": 21,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.628790158033371,
+          "rerank_score": 3.363705635070801
+        },
+        {
+          "chunk_number": 11,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.5085775256156921,
+          "rerank_score": 1.191805124282837
+        },
+        {
+          "chunk_number": 19,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.5332073122262955,
+          "rerank_score": 0.6242371797561646
+        }
+      ]
+    },
+    {
+      "id": "azure-storage-rbac",
+      "category": "supported",
+      "question": "Which role lets the Azure lab VM read Blob data, and at what scope?",
+      "expected_sources": [
+        "az104-infrastructure-lab.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 25,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.5344953338305155,
+          "rerank_score": 6.197195529937744
+        },
+        {
+          "chunk_number": 23,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.6131487439076105,
+          "rerank_score": 4.117247104644775
+        },
+        {
+          "chunk_number": 49,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.6303885082403818,
+          "rerank_score": 4.054041862487793
+        }
+      ]
+    },
+    {
+      "id": "azure-deployment-failure",
+      "category": "supported",
+      "question": "Why did the first Private Storage deployment fail even though the private endpoint succeeded?",
+      "expected_sources": [
+        "az104-infrastructure-lab.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 32,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.5899653822183609,
+          "rerank_score": 7.249887466430664
+        },
+        {
+          "chunk_number": 51,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.606760123372078,
+          "rerank_score": 4.968358039855957
+        },
+        {
+          "chunk_number": 33,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.5385863691568374,
+          "rerank_score": 4.692294120788574
+        }
+      ]
+    },
+    {
+      "id": "azure-deallocation",
+      "category": "supported",
+      "question": "How does the Azure lab reduce unnecessary VM compute charges after validation?",
+      "expected_sources": [
+        "az104-infrastructure-lab.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 16,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.6263041347265244,
+          "rerank_score": 7.335589408874512
+        },
+        {
+          "chunk_number": 53,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.5730432371298472,
+          "rerank_score": 1.2380752563476562
+        },
+        {
+          "chunk_number": 54,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.4130990679065386,
+          "rerank_score": 0.17929691076278687
+        }
+      ]
+    },
+    {
+      "id": "observability-detection",
+      "category": "supported",
+      "question": "How does the observability platform detect reliability problems?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": false
+      },
+      "results": [
+        {
+          "chunk_number": 111,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.49424889832735064,
+          "rerank_score": 3.5269997119903564
+        },
+        {
+          "chunk_number": 131,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.6231569588184357,
+          "rerank_score": 2.4121246337890625
+        },
+        {
+          "chunk_number": 100,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.5937049627304077,
+          "rerank_score": 2.378751039505005
+        }
+      ]
+    },
+    {
+      "id": "observability-correlation",
+      "category": "supported",
+      "question": "How do I move from a Loki error log to its matching distributed trace?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 94,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.6443032056093216,
+          "rerank_score": 5.951354026794434
+        }
+      ]
+    },
+    {
+      "id": "observability-slos",
+      "category": "supported",
+      "question": "What are the availability and latency SLO targets in the observability lab?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 86,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.6253319183985392,
+          "rerank_score": 4.582154750823975
+        },
+        {
+          "chunk_number": 113,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.6142770399649938,
+          "rerank_score": 3.620025873184204
+        },
+        {
+          "chunk_number": 133,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.5610310981671015,
+          "rerank_score": 3.579559803009033
+        }
+      ]
+    },
+    {
+      "id": "observability-no-traffic",
+      "category": "supported",
+      "question": "Does an idle application count as unavailable in the observability lab?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 112,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.540752187371254,
+          "rerank_score": 3.5638842582702637
+        }
+      ]
+    },
+    {
+      "id": "observability-fast-burn",
+      "category": "supported",
+      "question": "Which windows must exceed 4x for a fast-burn alert?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 108,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.7072427372137705,
+          "rerank_score": 7.217508316040039
+        }
+      ]
+    },
+    {
+      "id": "pilot-investigation",
+      "category": "supported",
+      "question": "How does PlatformPilot detect and investigate operational issues?",
+      "expected_sources": [
+        "platform-pilot.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 138,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.7494684457778931,
+          "rerank_score": 6.812206745147705
+        },
+        {
+          "chunk_number": 189,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.6902373999357223,
+          "rerank_score": 5.457531452178955
+        },
+        {
+          "chunk_number": 136,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.5587321728467941,
+          "rerank_score": 4.368025302886963
+        }
+      ]
+    },
+    {
+      "id": "pilot-viewer-export",
+      "category": "supported",
+      "question": "Can a PlatformPilot viewer export findings to CloudOps?",
+      "expected_sources": [
+        "platform-pilot.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": false
+      },
+      "results": [
+        {
+          "chunk_number": 136,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.6420959730943044,
+          "rerank_score": 6.313499450683594
+        },
+        {
+          "chunk_number": 157,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.589581290880839,
+          "rerank_score": 5.95037841796875
+        },
+        {
+          "chunk_number": 138,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.5648716390132904,
+          "rerank_score": 4.043784141540527
+        }
+      ]
+    },
+    {
+      "id": "pilot-auth-unconfigured",
+      "category": "supported",
+      "question": "What does PlatformPilot return when authentication is not configured?",
+      "expected_sources": [
+        "platform-pilot.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 151,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.6534139335155487,
+          "rerank_score": 4.738292217254639
+        },
+        {
+          "chunk_number": 178,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.6691762447357178,
+          "rerank_score": 3.3579323291778564
+        },
+        {
+          "chunk_number": 190,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.6091387927532196,
+          "rerank_score": 2.1413750648498535
+        }
+      ]
+    },
+    {
+      "id": "pilot-token-boundary",
+      "category": "supported",
+      "question": "Does PlatformPilot reuse the caller bearer token when it sends findings to CloudOps?",
+      "expected_sources": [
+        "platform-pilot.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 157,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.6931741386651993,
+          "rerank_score": 5.8973822593688965
+        },
+        {
+          "chunk_number": 158,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.6245947778224945,
+          "rerank_score": 5.030485153198242
+        },
+        {
+          "chunk_number": 190,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.5540050864219666,
+          "rerank_score": 2.4432878494262695
+        }
+      ]
+    },
+    {
+      "id": "pilot-frontend-session",
+      "category": "supported",
+      "question": "How does the PlatformPilot frontend validate a token before treating the browser session as authenticated?",
+      "expected_sources": [
+        "platform-pilot.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": false
+      },
+      "results": [
+        {
+          "chunk_number": 178,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.791562643316057,
+          "rerank_score": 7.975640773773193
+        },
+        {
+          "chunk_number": 191,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.7658405270841386,
+          "rerank_score": 7.1687846183776855
+        },
+        {
+          "chunk_number": 154,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.6798252413670222,
+          "rerank_score": 6.378472328186035
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-viewer",
+      "category": "ambiguous",
+      "question": "What can I inspect as a viewer, and what still needs an operator?",
+      "expected_sources": [
+        "platform-pilot.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 148,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.4849679831947599,
+          "rerank_score": 0.9064309597015381
+        },
+        {
+          "chunk_number": 149,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.3976386104311262,
+          "rerank_score": -0.5043849945068359
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-request-trace",
+      "category": "ambiguous",
+      "question": "How can I trace an application error back to the request that caused it?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 94,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.3886367380619049,
+          "rerank_score": 0.0012557804584503174
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-private-authorization",
+      "category": "ambiguous",
+      "question": "Does private connectivity itself grant the VM permission to read storage?",
+      "expected_sources": [
+        "az104-infrastructure-lab.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": false
+      },
+      "results": [
+        {
+          "chunk_number": 30,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.5270379185676575,
+          "rerank_score": 3.0082240104675293
+        },
+        {
+          "chunk_number": 32,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.4399057999253273,
+          "rerank_score": 1.8743314743041992
+        },
+        {
+          "chunk_number": 33,
+          "source": "az104-infrastructure-lab.md",
+          "hybrid_score": 0.4409960061311722,
+          "rerank_score": 1.5078742504119873
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-project-handoff",
+      "category": "ambiguous",
+      "question": "How does a finding move from PlatformPilot into human approval in CloudOps?",
+      "expected_sources": [
+        "platform-pilot.md",
+        "cloudops-command-center.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": false
+      },
+      "results": [
+        {
+          "chunk_number": 67,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.5582816962684903,
+          "rerank_score": 0.008105814456939697
+        },
+        {
+          "chunk_number": 70,
+          "source": "cloudops-command-center.md",
+          "hybrid_score": 0.581867971590587,
+          "rerank_score": -0.7416096329689026
+        },
+        {
+          "chunk_number": 136,
+          "source": "platform-pilot.md",
+          "hybrid_score": 0.5407824282135282,
+          "rerank_score": -0.9798465371131897
+        }
+      ]
+    },
+    {
+      "id": "unsupported-leave",
+      "category": "unsupported",
+      "question": "What is the company's annual leave policy?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "unsupported-expenses",
+      "category": "unsupported",
+      "question": "What is the employee expense reimbursement limit?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "unsupported-property",
+      "category": "unsupported",
+      "question": "What is the monthly rent for the tenant at 14 Market Street?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "unsupported-recipe",
+      "category": "unsupported",
+      "question": "How long should I bake a chocolate cake?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "unsupported-cloudops-backup",
+      "category": "unsupported",
+      "question": "How many days are CloudOps PostgreSQL backups retained?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "unsupported-pilot-tenant",
+      "category": "unsupported",
+      "question": "What is the production Microsoft Entra tenant ID used by PlatformPilot SSO?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "unsupported-observability-retention",
+      "category": "unsupported",
+      "question": "How many days are production Loki logs retained in the observability platform?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "unsupported-live-backlog",
+      "category": "unsupported",
+      "question": "How many CloudOps findings are waiting for approval right now?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    }
+  ]
+}

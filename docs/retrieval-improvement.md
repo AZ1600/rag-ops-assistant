@@ -1,5 +1,9 @@
 # Retrieval improvement: local evidence and limits
 
+The 2026-10-27 [terminology follow-up](terminology-retrieval.md) recovers the
+previously missed “quiet service” question. The measurements below describe
+the earlier section-retrieval update and remain available for comparison.
+
 ## What changed and why
 
 The old idle-application paragraph shared a chunk with alert and dashboard text.

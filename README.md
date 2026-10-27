@@ -687,7 +687,9 @@ The updated local run passes **32/32 source-selection and abstention checks**, c
 
 The update separates Markdown sections, broadens the candidate prefilter from `0.40` to `0.35`, and requires literal values for recognized cloud-ID and quantified-duration requests. The final reranker threshold stays unchanged. These development cases informed the change, so 32/32 is not an unseen-test accuracy claim.
 
-A separate set of 12 targeted probes improves from **7/12 to 11/12**. A “quiet service” paraphrase still returns no evidence. The main evaluation now exits `0` in the recorded environment; the probe evaluation exits `1` and saves its report. CI validates labels, ingestion, retrieval guards and evaluator behaviour offline, without running the real models. See [the rubric](docs/retrieval-evaluation.md) and [the comparison, limits and reproduction commands](docs/retrieval-improvement.md).
+A separate set of 12 targeted probes now passes **12/12**, following the earlier 11/12 result. If the original reranker rejects every candidate, one curated terminology alias can retry “quiet service/application/app” as “idle application”, including plurals. It reuses the same candidates and rejection threshold, and leaves the question and source evidence intact. A further 12 terminology boundary cases improve from **11/12 to 12/12**. These are development checks, not independent held-out accuracy measurements.
+
+The main and probe evaluations exit `0` in the recorded environment. CI validates labels, ingestion, retrieval guards and evaluator behaviour offline, without running real models. See [the rubric](docs/retrieval-evaluation.md), [the section retrieval comparison](docs/retrieval-improvement.md) and [the terminology retry results and limitations](docs/terminology-retrieval.md).
 
 ---
 
@@ -1214,7 +1216,7 @@ Run locally with:
 python -m pytest -v --junitxml=test-results/pytest.xml
 ```
 
-Validated locally: **118 passed**. These deterministic checks do not measure the
+Validated locally: **144 passed**. These deterministic checks do not measure the
 accuracy of the real embedding model or the quality of generated answers.
 
 ---

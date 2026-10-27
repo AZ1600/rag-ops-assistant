@@ -12,6 +12,7 @@ from src.rag_core import (
     CHUNKS_FILE,
     EMBEDDINGS_FILE,
     GROUNDING_VERSION,
+    RERANKING_VERSION,
     DEFAULT_CANDIDATE_COUNT,
     DEFAULT_HYBRID_MIN_SCORE,
     DEFAULT_TOP_N,
@@ -192,8 +193,8 @@ def main(argv=None):
             "expected_sources": case["expected_sources"],
             "metrics": evaluation,
             "results": [{key: result[key] for key in (
-                "chunk_number", "source", "hybrid_score", "rerank_score",
-            )} for result in results],
+                "chunk_number", "source", "hybrid_score", "rerank_score", "rerank_query",
+            ) if key in result} for result in results],
         })
 
         success = evaluation["passed"]
@@ -249,7 +250,8 @@ def main(argv=None):
                               for name, text in load_documents().items()},
             "index_sha256": {"chunks.json": digest(CHUNKS_FILE), "embeddings.npy": digest(EMBEDDINGS_FILE)},
             "models": {"embedding": model_name, "reranker": RERANKER_MODEL},
-            "retrieval_policy": {"chunking": metadata["chunking_version"], "grounding": GROUNDING_VERSION},
+            "retrieval_policy": {"chunking": metadata["chunking_version"], "grounding": GROUNDING_VERSION,
+                                 "reranking": RERANKING_VERSION},
             "versions": {"python": platform.python_version(), "sentence-transformers": version("sentence-transformers"),
                          "transformers": version("transformers"), "torch": version("torch")},
             "parameters": {"candidate_count": DEFAULT_CANDIDATE_COUNT, "hybrid_min_score": DEFAULT_HYBRID_MIN_SCORE,
