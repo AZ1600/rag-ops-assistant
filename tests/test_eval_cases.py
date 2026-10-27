@@ -33,11 +33,25 @@ def test_targeted_probe_labels_have_real_document_evidence():
     assert {case["question"] for case in cases}.isdisjoint(case["question"] for case in primary)
 
 
+def test_terminology_boundary_labels_have_documented_references():
+    root = Path(__file__).resolve().parents[1]
+    cases = json.loads((root / "evals/terminology_cases.json").read_text())
+    documents = {p.name: p.read_text() for p in (root / "data").glob("*.md")}
+    assert validate_eval_cases(cases, documents) == cases
+    existing = [case["question"] for name in ["retrieval_cases.json", "retrieval_probes.json"]
+                for case in json.loads((root / "evals" / name).read_text())]
+    assert {case["question"] for case in cases}.isdisjoint(existing)
+
+
 @pytest.mark.parametrize("report_name,dataset_name", [
     ("retrieval-baseline.json", "retrieval_cases.json"),
     ("retrieval-improvement.json", "retrieval_cases.json"),
     ("retrieval-probes-baseline.json", "retrieval_probes.json"),
     ("retrieval-probes.json", "retrieval_probes.json"),
+    ("terminology-probes.json", "retrieval_probes.json"),
+    ("terminology-main.json", "retrieval_cases.json"),
+    ("terminology-boundary-baseline.json", "terminology_cases.json"),
+    ("terminology-boundary.json", "terminology_cases.json"),
 ])
 def test_recorded_report_is_paired_with_the_current_dataset_and_corpus(report_name, dataset_name):
     root = Path(__file__).resolve().parents[1]

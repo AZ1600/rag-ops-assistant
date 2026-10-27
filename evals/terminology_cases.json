@@ -1,0 +1,152 @@
+[
+  {
+    "id": "quiet-samples",
+    "category": "supported",
+    "question": "Does a quiet application generate availability samples without requests?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "The SLI rules only emit values when application traffic exists."
+      }
+    ],
+    "rationale": "Targeted terminology boundary case written during alias development; the no-traffic section documents this behaviour."
+  },
+  {
+    "id": "quiet-app-percent",
+    "category": "supported",
+    "question": "Can a quiet app appear 0% available just because it has no traffic?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "No application traffic is not treated as a service failure."
+      }
+    ],
+    "rationale": "Targeted terminology boundary case written during alias development; the no-traffic section documents this behaviour."
+  },
+  {
+    "id": "quiet-service-handling",
+    "category": "supported",
+    "question": "How does the observability lab handle a quiet service with no requests?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "No application traffic is not treated as a service failure."
+      }
+    ],
+    "rationale": "Targeted terminology boundary case written during alias development; the no-traffic section documents this behaviour."
+  },
+  {
+    "id": "idle-samples",
+    "category": "supported",
+    "question": "Does an idle application produce new SLI samples without traffic?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "The SLI rules only emit values when application traffic exists."
+      }
+    ],
+    "rationale": "Targeted terminology boundary case written during alias development; the no-traffic section documents this behaviour."
+  },
+  {
+    "id": "quiet-plural-failure",
+    "category": "supported",
+    "question": "Are quiet services treated as failures when there is no application traffic?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "No application traffic is not treated as a service failure."
+      }
+    ],
+    "rationale": "Targeted terminology boundary case written during alias development; the no-traffic section documents this behaviour."
+  },
+  {
+    "id": "unused-service",
+    "category": "supported",
+    "question": "Is an unused service considered down if no requests arrive?",
+    "expect_evidence": true,
+    "expected_sources": [
+      "platform-engineering-observability.md"
+    ],
+    "reference_evidence": [
+      {
+        "source": "platform-engineering-observability.md",
+        "quote": "No application traffic is not treated as a service failure."
+      }
+    ],
+    "rationale": "Targeted terminology boundary case written during alias development; the no-traffic section documents this behaviour."
+  },
+  {
+    "id": "quiet-tenant",
+    "category": "unsupported",
+    "question": "What is the production tenant ID for the quiet service?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "The snapshots contain no production tenant ID for this service. Targeted boundary case, not independent held-out evidence."
+  },
+  {
+    "id": "quiet-historical-uptime",
+    "category": "unsupported",
+    "question": "What was the measured uptime percentage for the quiet service yesterday?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "The snapshots contain lab rules and examples, not yesterday's measured uptime. Targeted boundary case, not independent held-out evidence."
+  },
+  {
+    "id": "quiet-refund",
+    "category": "unsupported",
+    "question": "What SLA refund does a customer receive for a quiet service?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "The snapshots contain no customer SLA refund policy. Targeted boundary case, not independent held-out evidence."
+  },
+  {
+    "id": "quiet-production-cost",
+    "category": "unsupported",
+    "question": "How much does running a quiet service cost per month in production?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "There is no measured production monthly bill for a quiet service in the snapshots. Targeted boundary case, not independent held-out evidence."
+  },
+  {
+    "id": "quiet-admin-password",
+    "category": "unsupported",
+    "question": "What is the production admin password for the quiet service?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "No production admin password is documented. Targeted boundary case, not independent held-out evidence."
+  },
+  {
+    "id": "quiet-fan-noise",
+    "category": "unsupported",
+    "question": "How loud in decibels is a quiet service's cooling fan?",
+    "expect_evidence": false,
+    "expected_sources": [],
+    "reference_evidence": [],
+    "rationale": "The corpus describes software operations, not a cooling-fan sound measurement. Targeted boundary case, not independent held-out evidence."
+  }
+]

@@ -21,7 +21,7 @@ use no AWS credentials, Bedrock calls, MCP subprocess, model downloads or index.
 creation and real SentenceTransformer/CrossEncoder construction. Individual tests
 replace the required boundaries with controlled fakes.
 
-The expanded suite was validated locally with Python 3.11: **118 passed** (including the original 80 regression checks). GitHub Actions runs the same tests on pull requests and pushes to
+The expanded suite was validated locally with Python 3.11: **144 passed** (including the previous 118 regression checks). GitHub Actions runs the same tests on pull requests and pushes to
 `main`, with read-only repository permissions, a timeout and a JUnit artifact.
 Local success does not imply that a remote CI run has already passed.
 
@@ -32,6 +32,7 @@ Local success does not imply that a remote CI run has already passed.
 | Retrieval | Keyword overlap, semantic/keyword weighting, candidate limits and threshold boundaries |
 | Reranking | Final ordering, rejection threshold, result limits and skipping empty candidates |
 | Ingestion | Markdown section boundaries, repeated heading context, fenced-code headings, empty sections and oversized paragraphs |
+| Terminology retry | Original results take precedence; one retry reuses candidates and cutoff; source text is preserved; literal guards run first; retry errors propagate; report records the retry query |
 | Value evidence | Recognized cloud-ID and duration requests reject missing values; valid literal formats and conceptual questions still pass; legacy indexes require a rebuild |
 | Provenance | Chunk numbers, sources, context order and stable source deduplication |
 | Knowledge-base tool | Real search/reranking functions with controlled vectors and scores; refusal when either stage rejects evidence |
@@ -64,11 +65,19 @@ coverage is a separate diagnostic: **17/24 answerable cases**, previously 12/24.
 The fixed questions and four documents are unchanged. These are development
 cases used to inform the change, rather than an independent test set.
 
-The separate targeted probes improve from **7/12 to 11/12** and still exit `1`:
-a “quiet service” paraphrase returns no evidence. See [the evaluation rubric](retrieval-evaluation.md)
-and [the comparison and limits](retrieval-improvement.md). Rebuild the local index
-with `python -m src.ingest` before either real-model evaluation; older chunking
-formats are now rejected. Cached models are required for offline ingestion.
+The separate targeted probes now pass **12/12** after a curated terminology retry,
+compared with 11/12 before this follow-up. A further 12 terminology boundary cases
+improve from **11/12 to 12/12**, with all six missing-fact questions still refused.
+The retry only runs when the first reranking returns no evidence, and keeps the
+same candidate set, literal-value checks and rejection cutoff. Reports record
+the reranking policy and the alias used for retry scores.
+
+See [the evaluation rubric](retrieval-evaluation.md),
+[the section comparison](retrieval-improvement.md) and
+[the terminology results and limits](terminology-retrieval.md). The terminology
+update does not require another index rebuild if the section index is already
+current; older chunking formats still require `python -m src.ingest`. Cached
+models are required for offline ingestion.
 
 The automated tests validate every dataset label and reference against the corpus,
 and exercise the module entry point and JSON reporting with synthetic models.

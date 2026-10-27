@@ -12,6 +12,7 @@ CHUNKS_FILE = INDEX_DIR / "chunks.json"
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 CHUNKING_VERSION = "markdown-sections-v1"
 GROUNDING_VERSION = "literal-cloud-ids-duration-v1"
+RERANKING_VERSION = "quiet-service-alias-v1"
 
 DEFAULT_CANDIDATE_COUNT = 8
 DEFAULT_HYBRID_MIN_SCORE = 0.35
@@ -208,7 +209,34 @@ def rerank_results(
         if candidate["rerank_score"] >= min_rerank_score
     ]
 
+    # Retry an explicitly documented terminology alias only after the original
+    # question fails. Keep the same candidates, literal-value guards and cutoff.
+    alias = rerank_query_alias(query) if not relevant_results else query
+    if alias != query:
+        alias_scores = reranker.predict([[alias, candidate["text"]] for candidate in candidates])
+        relevant_results = [
+            dict(candidate, rerank_score=float(score), rerank_query=alias)
+            for candidate, score in zip(candidates, alias_scores)
+            if float(score) >= min_rerank_score
+        ]
+        relevant_results.sort(key=lambda item: item["rerank_score"], reverse=True)
+
     return relevant_results[:top_n]
+
+
+def rerank_query_alias(query: str) -> str:
+    """One curated operations alias; not an LLM rewrite or general synonym map.
+
+    A quiet service/application can describe an idle application. The retry
+    still has to pass the original reranker cutoff; it cannot add evidence.
+    """
+    return re.sub(
+        r"\b(?:a\s+)?quiet\s+(services?|applications?|apps?)\b",
+        lambda match: ("an " if re.match(r"a\s", match.group(0), re.I) else "")
+        + ("idle applications" if match.group(1).lower().endswith("s") else "idle application"),
+        query,
+        flags=re.I,
+    )
 
 
 def factual_value_evidence(query: str, candidates: list[dict]) -> list[dict]:

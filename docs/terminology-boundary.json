@@ -1,0 +1,282 @@
+{
+  "schema_version": 1,
+  "scoring": {
+    "pass": "Expected sources all returned, no unexpected sources; unsupported questions return no chunks.",
+    "reference_coverage": "Diagnostic exact normalized quote coverage; equivalent wording can be missed. Not answer accuracy."
+  },
+  "dataset_sha256": "b470f3ca2c5c7ff8d2a9637fa6d9dc5e31049a92250cd897b7b17cfb7aedf27c",
+  "corpus_sha256": {
+    "az104-infrastructure-lab.md": "8dcdd4e3f4e07f986d38a7f49a7a109c0141159019129bd6a8c28c4f828c4f99",
+    "cloudops-command-center.md": "3d88391bf39da154a18f132f63f561f58274f981a1cd634933faeef61841a962",
+    "platform-engineering-observability.md": "c1040a49ecfb70cd7930bbf5b1f5e980b0715d77f214cb9a49823676f535b7f3",
+    "platform-pilot.md": "f936ee8a3708ce8102a246b96616d5033eb6b9051a2258922f51f55f7f62bdb8"
+  },
+  "index_sha256": {
+    "chunks.json": "776bd65f195a02c7bd88fc74a56c6aa1a4bb6ff994e462f830e478b2b00a593b",
+    "embeddings.npy": "db348dcc68d45aa3b0d5051df1b3ffbd849d56afb4aebca4609f07a83b23aa85"
+  },
+  "models": {
+    "embedding": "all-MiniLM-L6-v2",
+    "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  },
+  "retrieval_policy": {
+    "chunking": "markdown-sections-v1",
+    "grounding": "literal-cloud-ids-duration-v1",
+    "reranking": "quiet-service-alias-v1"
+  },
+  "versions": {
+    "python": "3.11.14",
+    "sentence-transformers": "6.1.0",
+    "transformers": "5.17.0",
+    "torch": "2.14.0"
+  },
+  "parameters": {
+    "candidate_count": 8,
+    "hybrid_min_score": 0.35,
+    "top_n": 3,
+    "rerank_min_score": -1.0
+  },
+  "summary": {
+    "passed": 12,
+    "total": 12,
+    "categories": {
+      "supported": {
+        "passed": 6,
+        "total": 6
+      },
+      "unsupported": {
+        "passed": 6,
+        "total": 6
+      }
+    },
+    "reference_coverage": {
+      "covered": 6,
+      "total": 6
+    }
+  },
+  "cases": [
+    {
+      "id": "quiet-samples",
+      "category": "supported",
+      "question": "Does a quiet application generate availability samples without requests?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 112,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.4073737753289086,
+          "rerank_score": 2.3162007331848145,
+          "rerank_query": "Does an idle application generate availability samples without requests?"
+        }
+      ]
+    },
+    {
+      "id": "quiet-app-percent",
+      "category": "supported",
+      "question": "Can a quiet app appear 0% available just because it has no traffic?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 112,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.469782290133563,
+          "rerank_score": 3.41304349899292
+        }
+      ]
+    },
+    {
+      "id": "quiet-service-handling",
+      "category": "supported",
+      "question": "How does the observability lab handle a quiet service with no requests?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 112,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.49402289944035666,
+          "rerank_score": 1.7193717956542969
+        }
+      ]
+    },
+    {
+      "id": "idle-samples",
+      "category": "supported",
+      "question": "Does an idle application produce new SLI samples without traffic?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 112,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.6541047394275665,
+          "rerank_score": 6.964004993438721
+        }
+      ]
+    },
+    {
+      "id": "quiet-plural-failure",
+      "category": "supported",
+      "question": "Are quiet services treated as failures when there is no application traffic?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 112,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.5571397244930267,
+          "rerank_score": 5.337336540222168
+        }
+      ]
+    },
+    {
+      "id": "unused-service",
+      "category": "supported",
+      "question": "Is an unused service considered down if no requests arrive?",
+      "expected_sources": [
+        "platform-engineering-observability.md"
+      ],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": [
+        {
+          "chunk_number": 112,
+          "source": "platform-engineering-observability.md",
+          "hybrid_score": 0.493181437253952,
+          "rerank_score": -0.7832136154174805
+        }
+      ]
+    },
+    {
+      "id": "quiet-tenant",
+      "category": "unsupported",
+      "question": "What is the production tenant ID for the quiet service?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "quiet-historical-uptime",
+      "category": "unsupported",
+      "question": "What was the measured uptime percentage for the quiet service yesterday?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "quiet-refund",
+      "category": "unsupported",
+      "question": "What SLA refund does a customer receive for a quiet service?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "quiet-production-cost",
+      "category": "unsupported",
+      "question": "How much does running a quiet service cost per month in production?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "quiet-admin-password",
+      "category": "unsupported",
+      "question": "What is the production admin password for the quiet service?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    },
+    {
+      "id": "quiet-fan-noise",
+      "category": "unsupported",
+      "question": "How loud in decibels is a quiet service's cooling fan?",
+      "expected_sources": [],
+      "metrics": {
+        "passed": true,
+        "top1_correct": true,
+        "source_purity": true,
+        "source_coverage": true,
+        "evidence_coverage": true
+      },
+      "results": []
+    }
+  ]
+}

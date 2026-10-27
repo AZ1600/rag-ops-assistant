@@ -1,5 +1,9 @@
 # Retrieval evaluation
 
+The 2026-10-27 [terminology follow-up](terminology-retrieval.md) recovers the
+previously missed “quiet service” question. The measurements below describe
+the earlier section-retrieval update and remain available for comparison.
+
 The dataset evaluates retrieval from the four checked-in Markdown snapshots. It
 does not query live infrastructure, refresh another repository's documentation or
 generate an answer with Bedrock.
