@@ -1,0 +1,253 @@
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+  }
+}
+
+provider "aws" {
+  region              = var.aws_region
+  profile             = var.aws_profile
+  allowed_account_ids = [var.expected_account_id]
+  default_tags {
+    tags = {
+      Project = var.stack_name
+      Purpose = "temporary-rag-verification"
+    }
+  }
+}
+
+variable "aws_region" { default = "eu-west-2" }
+variable "aws_profile" { default = "one-piece-new" }
+variable "expected_account_id" { type = string }
+variable "vpc_id" { type = string }
+variable "subnet_ids" {
+  type = list(string)
+  validation {
+    condition     = length(var.subnet_ids) == 2
+    error_message = "Exactly two existing subnets in different availability zones are required."
+  }
+}
+variable "owner_cidr" {
+  type = string
+  validation {
+    condition     = can(cidrhost(var.owner_cidr, 0)) && endswith(var.owner_cidr, "/32")
+    error_message = "Use the operator's public IPv4 /32, not an open internet range."
+  }
+}
+variable "stack_name" { default = "rag-live-20261027" }
+variable "image_tag" { default = "live-6956bc2" }
+variable "desired_count" {
+  type    = number
+  default = 0
+  validation {
+    condition     = contains([0, 1], var.desired_count)
+    error_message = "The temporary service supports only zero or one task."
+  }
+}
+
+data "aws_vpc" "existing" { id = var.vpc_id }
+data "aws_subnet" "existing" {
+  for_each = toset(var.subnet_ids)
+  id       = each.value
+}
+
+resource "aws_ecr_repository" "test" {
+  name                 = var.stack_name
+  force_delete         = true
+  image_tag_mutability = "IMMUTABLE"
+  image_scanning_configuration { scan_on_push = true }
+}
+
+resource "aws_cloudwatch_log_group" "test" {
+  name              = "/ecs/${var.stack_name}"
+  retention_in_days = 1
+}
+
+locals {
+  task_trust = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+resource "aws_iam_role" "execution" {
+  name               = "${var.stack_name}-execution"
+  assume_role_policy = local.task_trust
+}
+resource "aws_iam_role_policy_attachment" "execution" {
+  role       = aws_iam_role.execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+resource "aws_iam_role" "task" {
+  name               = "${var.stack_name}-task"
+  assume_role_policy = local.task_trust
+}
+resource "aws_iam_role_policy" "bedrock" {
+  name = "InvokeRagModel"
+  role = aws_iam_role.task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = ["bedrock:InvokeModel"]
+      Resource = [
+        "arn:aws:bedrock:${var.aws_region}:${var.expected_account_id}:inference-profile/global.amazon.nova-2-lite-v1:0",
+        "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.nova-2-lite-v1:0",
+        "arn:aws:bedrock:::foundation-model/amazon.nova-2-lite-v1:0"
+      ]
+    }]
+  })
+}
+
+resource "aws_security_group" "alb" {
+  name        = "${var.stack_name}-alb"
+  description = "Temporary RAG verification ALB"
+  vpc_id      = data.aws_vpc.existing.id
+}
+resource "aws_security_group" "task" {
+  name        = "${var.stack_name}-task"
+  description = "Temporary RAG verification task"
+  vpc_id      = data.aws_vpc.existing.id
+}
+resource "aws_vpc_security_group_ingress_rule" "owner_http" {
+  security_group_id = aws_security_group.alb.id
+  cidr_ipv4         = var.owner_cidr
+  ip_protocol       = "tcp"
+  from_port         = 80
+  to_port           = 80
+}
+resource "aws_vpc_security_group_ingress_rule" "alb_to_task" {
+  security_group_id            = aws_security_group.task.id
+  referenced_security_group_id = aws_security_group.alb.id
+  ip_protocol                  = "tcp"
+  from_port                    = 8000
+  to_port                      = 8000
+}
+resource "aws_vpc_security_group_egress_rule" "alb_to_task" {
+  security_group_id            = aws_security_group.alb.id
+  referenced_security_group_id = aws_security_group.task.id
+  ip_protocol                  = "tcp"
+  from_port                    = 8000
+  to_port                      = 8000
+}
+resource "aws_vpc_security_group_egress_rule" "task_outbound" {
+  security_group_id = aws_security_group.task.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+}
+
+resource "aws_lb" "test" {
+  name                       = "${var.stack_name}-alb"
+  internal                   = false
+  load_balancer_type         = "application"
+  security_groups            = [aws_security_group.alb.id]
+  subnets                    = var.subnet_ids
+  enable_deletion_protection = false
+  lifecycle {
+    precondition {
+      condition     = alltrue([for s in data.aws_subnet.existing : s.vpc_id == var.vpc_id]) && length(toset([for s in data.aws_subnet.existing : s.availability_zone])) == 2
+      error_message = "Subnets must belong to the selected VPC and different availability zones."
+    }
+  }
+}
+resource "aws_lb_target_group" "test" {
+  name                 = "${var.stack_name}-tg"
+  port                 = 8000
+  protocol             = "HTTP"
+  target_type          = "ip"
+  vpc_id               = data.aws_vpc.existing.id
+  deregistration_delay = 10
+  health_check {
+    path                = "/health"
+    interval            = 15
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
+}
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.test.arn
+  port              = 80
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.test.arn
+  }
+}
+
+resource "aws_ecs_cluster" "test" { name = var.stack_name }
+resource "aws_ecs_task_definition" "test" {
+  family                   = var.stack_name
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = "1024"
+  memory                   = "2048"
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
+  container_definitions = jsonencode([{
+    name         = "rag"
+    image        = "${aws_ecr_repository.test.repository_url}:${var.image_tag}"
+    essential    = true
+    portMappings = [{ containerPort = 8000, protocol = "tcp" }]
+    environment = [
+      { name = "HF_HUB_OFFLINE", value = "1" },
+      { name = "TRANSFORMERS_OFFLINE", value = "1" },
+      { name = "HF_HUB_DISABLE_TELEMETRY", value = "1" },
+      { name = "LANGSMITH_TRACING", value = "false" }
+    ]
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.test.name
+        awslogs-region        = var.aws_region
+        awslogs-stream-prefix = "ecs"
+      }
+    }
+  }])
+}
+resource "aws_ecs_service" "test" {
+  name                               = var.stack_name
+  cluster                            = aws_ecs_cluster.test.id
+  task_definition                    = aws_ecs_task_definition.test.arn
+  desired_count                      = var.desired_count
+  launch_type                        = "FARGATE"
+  platform_version                   = "LATEST"
+  wait_for_steady_state              = true
+  deployment_minimum_healthy_percent = 0
+  deployment_maximum_percent         = 100
+  health_check_grace_period_seconds  = 180
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+  network_configuration {
+    subnets          = var.subnet_ids
+    security_groups  = [aws_security_group.task.id]
+    assign_public_ip = true
+  }
+  load_balancer {
+    target_group_arn = aws_lb_target_group.test.arn
+    container_name   = "rag"
+    container_port   = 8000
+  }
+  depends_on = [aws_lb_listener.http, aws_iam_role_policy_attachment.execution, aws_iam_role_policy.bedrock, aws_vpc_security_group_ingress_rule.alb_to_task, aws_vpc_security_group_egress_rule.task_outbound]
+}
+
+output "repository_url" { value = aws_ecr_repository.test.repository_url }
+output "alb_url" { value = "http://${aws_lb.test.dns_name}" }
+output "cluster_name" { value = aws_ecs_cluster.test.name }
+output "service_name" { value = aws_ecs_service.test.name }
+output "log_group" { value = aws_cloudwatch_log_group.test.name }
+output "task_definition_arn" { value = aws_ecs_task_definition.test.arn }
+output "task_security_group_id" { value = aws_security_group.task.id }
+output "stack_name" { value = var.stack_name }

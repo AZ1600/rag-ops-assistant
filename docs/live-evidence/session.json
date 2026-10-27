@@ -1,0 +1,17 @@
+{
+  "runtime_source_revision": "6956bc287dadbea34175a4e256457d3ee02de04f",
+  "session_started_utc": "2026-10-27T10:40:42Z",
+  "cleanup_verified_utc": "2026-10-27T11:16:34.772907+00:00",
+  "session_elapsed_minutes": 35.9,
+  "budget_gbp": 5,
+  "actual_billed_total": "Not verified against AWS billing data.",
+  "deployment_method": "Manual local Docker build, ECR push, dedicated temporary Terraform state; GitHub Actions/OIDC deployment was not rerun.",
+  "infrastructure_template_sha256": "ddd84a92759ab79a18a3596f4ec92e54dacce0e1f0343295c17752f3fc5b49bf",
+  "published_records": "Selected responses and summaries; full account-specific inventory, state and raw logs remain local.",
+  "screenshots_sha256": {
+    "aws-live-ready.png": "e565cdd12fb11fec26c1943ff79e59ab21bf2e2d0274f46265cafdd3ac4a7094",
+    "aws-live-supported.png": "9b9eeee1a353124acd5a48469162f80baadc00f5ddeb6eb67546df88eeea0c72",
+    "aws-live-refusal.png": "11fd707383e86200e4db10a39fa20af3ca054cdef73b0a95897050ee3d6ec5f9",
+    "aws-live-cleanup.png": "e6f4d721c0520cfc4d5a33b56da0571a850af4ca9eda2dfeb9e4342f1dbbf7dc"
+  }
+}
