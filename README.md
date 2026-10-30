@@ -1,126 +1,116 @@
+
 # RAG Ops Assistant
 
 [![Tests](https://github.com/AZ1600/rag-ops-assistant/actions/workflows/tests.yml/badge.svg)](https://github.com/AZ1600/rag-ops-assistant/actions/workflows/tests.yml)
-[AWS deployment evidence](docs/aws-deployment.md) · [Validation details](docs/validation.md)
 
-An operations documentation assistant built with **RAG, Amazon Bedrock, MCP,
-LangGraph and FastAPI**. It retrieves evidence from four engineering project
-snapshots and returns an answer with source files, chunk references and retrieval
-scores.
+**An evidence-first operations documentation assistant** built with **FastAPI, LangGraph, Amazon Bedrock, MCP and hybrid retrieval**. It searches four curated cloud/platform engineering documentation snapshots and returns answers with source files, chunk references and retrieval scores.
 
-The project has been **deployed and tested on AWS ECS Fargate** using an ARM64
-container, an Application Load Balancer, IAM task roles, ECR, CloudWatch,
-Terraform and GitHub Actions with OIDC. The [AWS guide](docs/aws-deployment.md)
-preserves the original cloud delivery work.
+**Start here:** [Technical review](#technical-review--start-here) · [Architecture](#architecture-and-safety-boundaries) · [Validation](#validation-and-evidence) · [Quick start](#quick-start--offline-tests) · [AWS evidence](#live-aws-verification) · [Limitations](#scope-and-limitations)
 
-On **27 October 2026**, merged runtime revision `6956bc2` was deployed again using
-a dedicated temporary Terraform stack. Four live `/ask` requests returned HTTP
-200: two supported answers included source evidence, and two missing-fact
-questions returned the fixed refusal. CloudWatch recorded four MCP searches and
-six Bedrock-node calls. **All 18 test resources were then destroyed**, with
-cleanup independently checked through AWS APIs and local state. The test endpoint
-was removed after verification. [Results, screenshots and limits](docs/live-verification.md).
+> [!IMPORTANT]
+> This is a **portfolio/reference implementation**, not a live cloud-operations agent. It searches checked-in documentation, **does not inspect live infrastructure or execute remediation**, and currently has **no API-level authentication or rate limiting**. Its most recent temporary AWS test deployment was removed after verification.
+
+## Technical review — start here
+
+For a two-minute code review, follow these links before reading the full walkthrough:
+
+| Engineering question | Implementation or evidence |
+| --- | --- |
+| How does a question reach the model and retrieval tool? | [LangGraph agent](src/langgraph_agent.py), [MCP server](src/mcp_server.py), [architecture](#architecture-and-safety-boundaries) |
+| Where are documents indexed and ranked? | [Ingestion](src/ingest.py), [retrieval implementation](src/rag_core.py), [retrieval tests](tests/test_retrieval.py) |
+| How are unknown facts and errors handled? | [Agent tests](tests/test_agent.py), [API error tests](tests/test_api_errors.py) |
+| How is retrieval measured? | [Evaluation code](src/evaluate.py), [fixed cases](evals/retrieval_cases.json), [methodology](docs/retrieval-evaluation.md) |
+| Has the system run on AWS? | [Deployment guide](docs/aws-deployment.md), [27 October 2026 live verification](docs/live-verification.md) |
+| What is checked automatically? | [Offline test workflow](.github/workflows/tests.yml), [deployment workflow](.github/workflows/deploy.yml) |
+| What remains unproven? | [Scope and limitations](#scope-and-limitations), [live citation-format finding](docs/live-verification.md#observed-limitation) |
+
+### At a glance
+
+| Verification | Recorded outcome | Interpretation |
+| --- | --- | --- |
+| Offline regression suite | **144 passed** (also reproduced locally on 30 October 2026) | Deterministic tests with controlled fakes; not a live Bedrock evaluation |
+| Fixed retrieval evaluation | **32/32** | Source selection and abstention on development cases |
+| Targeted retrieval probes | **12/12**, plus **12/12** terminology cases | Specific paraphrase and missing-fact scenarios |
+| Live AWS smoke checks (27 October 2026) | **4 HTTP 200 responses** | Two supported answers with evidence, two fixed refusals |
+| AWS temporary-stack cleanup | **18 resources destroyed; 0 active test infrastructure** | Checked after the temporary deployment; not evidence of an always-on service |
+
+The evaluation cases helped guide development and are **not an independent held-out accuracy benchmark**. The live checks also revealed an inline citation-number mismatch, documented below.
 
 ## What it does
 
-Use the assistant to ask how a documented system works, such as:
+Ask questions about the four documented engineering systems, for example:
 
 - “How does Private DNS help the VM reach Blob Storage?”
 - “What are the five steps in a CloudOps Decision Trace, and can it execute a change?”
 - “How do I move from a Loki error log to its matching distributed trace?”
 - “Can a PlatformPilot viewer export findings to CloudOps?”
 
-It searches documentation snapshots. It does not query live cloud resources,
-inspect current incidents or execute remediation. The MCP server exposes one
-read-only tool: `search_knowledge_base`.
+The assistant searches *curated snapshots*, not the current state of AWS, Azure, Kubernetes or customer systems. Its MCP server exposes one **read-only** tool: `search_knowledge_base`.
 
-## How the pieces fit
+## Architecture and safety boundaries
 
-| Layer | Responsibility |
+| Component | Responsibility |
 | --- | --- |
-| FastAPI | HTTP request validation, `/health`, `/ask` and structured responses |
-| LangGraph | Question state, model/tool routing and the no-evidence stopping rule |
-| Bedrock / Nova | Choose tools and generate the response |
-| MCP | Discover and call the knowledge-base search tool over a persistent stdio connection |
-| Retrieval | Select document chunks using embeddings, keyword overlap and reranking |
-| AWS delivery | Run the container on Fargate with Terraform-managed infrastructure and OIDC deployment authentication |
+| FastAPI | Validate HTTP requests, expose `/health` and `/ask`, return structured responses |
+| LangGraph | Maintain question state, route model/tool calls and stop after missing retrieval evidence |
+| Amazon Bedrock / Nova | Select tools and generate responses |
+| MCP | Expose the knowledge-base search tool over a persistent stdio connection |
+| Retrieval | Chunk Markdown, combine semantic and lexical scores, rerank and preserve references |
+| AWS delivery | Run a container on ECS Fargate with Terraform-managed infrastructure and GitHub OIDC |
 
 ```mermaid
 flowchart TD
     U[User question] --> API[FastAPI]
     API --> G[LangGraph]
     G --> B[Amazon Bedrock]
-    B -->|Tool request| M[MCP search tool]
+    B -->|Search tool call| M[MCP search_knowledge_base]
     M --> R[Hybrid retrieval and reranking]
     R --> E{Evidence found?}
-    E -->|Yes: original source context| B
-    E -->|No| A[Fixed abstention response]
-    B -->|Direct or final answer| O[Answer, sources and evidence]
+    E -->|Yes: source context| B
+    E -->|No| A[Fixed insufficient-evidence response]
+    B --> O[Answer, sources and evidence]
     A --> O
 ```
 
-General questions can receive a direct Bedrock answer. Documentation questions
-are instructed to use retrieval. When the search tool returns `found: false`,
-LangGraph stops before a further generation call and returns a fixed abstention.
-A tool failure raises a service error and produces a generic HTTP 500 response.
-The guard applies after a search; it does not prove that every model response
-is grounded or that the model always chooses the tool correctly.
+General questions can receive a direct Bedrock answer. Documentation questions are instructed to use retrieval. If a search returns `found: false`, the graph stops before another generation call and returns a fixed abstention. Tool failures surface as service errors and a generic HTTP 500 response.
 
-## Demonstrated engineering work
+**Important boundary:** This guard works *after* the model chooses to search. It does not prove that every answer uses retrieval, is grounded, or has correctly aligned inline citations. No retrieved document or model output is authorized to change infrastructure.
 
-- **Evidence retrieval:** section-aware Markdown chunking with repeated headings,
-  hybrid scoring, cross-encoder reranking and stable source/chunk metadata.
-- **Missing-fact handling:** literal-value checks for recognized cloud-ID and
-  duration requests, plus the graph's no-evidence stopping rule.
-- **Measured iteration:** preserved baseline reports, fixed questions and corpus
-  fingerprints, targeted probes and documented remaining limits.
-- **Cloud delivery:** an ARM64 CPU-only image, ECR scanning, separate ECS execution
-  and application roles, ALB routing, CloudWatch logs and Terraform reconciliation.
-- **Deployment identity:** GitHub OIDC with temporary AWS credentials,
-  commit-SHA image tags and ECS service/target-health checks.
+### Engineering decisions
 
-The earlier cloud query and deployment evidence remain in the
-[AWS guide](docs/aws-deployment.md#end-to-end-aws-rag-query).
+- **Traceable retrieval:** Section-aware Markdown chunking, stable chunk/source identifiers, semantic search with keyword overlap and cross-encoder reranking.
+- **Unsupported facts:** Literal-value checks for recognized cloud identifiers and durations, plus fixed refusal when search finds no evidence.
+- **Targeted terminology handling:** A narrowly scoped quiet-service → idle-application retry; not unrestricted query rewriting.
+- **Reproducibility:** Fixed cases, corpus/index fingerprints, pinned dependency inputs and saved baseline/evaluation reports.
+- **Cost-aware AWS validation:** Temporary deployment, health and query checks, then explicit cleanup rather than an always-running demonstration stack.
+- **Separation of identity:** GitHub OIDC for deployment; distinct ECS execution and application task roles.
 
-## Validation results
+See [retrieval improvements](docs/retrieval-improvement.md), [terminology testing](docs/terminology-retrieval.md) and the [AWS deployment guide](docs/aws-deployment.md).
 
-Recorded local validation after the retrieval updates, through **27 October 2026**:
+## Validation and evidence
+
+Recorded validation through **27 October 2026** (with the unchanged **144-test baseline** reproduced locally on **30 October 2026**):
 
 | Check | Result | What it measures |
 | --- | ---: | --- |
-| Deterministic offline tests | **144 passed** | Retrieval, ingestion, tool/graph behaviour, API errors, labels and evaluator reporting with controlled fakes |
-| Fixed retrieval evaluation | **32/32** | Source selection and abstention across 20 supported, 4 ambiguous/cross-project and 8 unsupported questions |
+| Deterministic offline tests | **144 passed** | Ingestion, retrieval, agent/tool behaviour, API errors, evaluation logic and controlled fakes |
+| Fixed retrieval evaluation | **32/32** | Source selection and abstention: 20 supported, 4 ambiguous/cross-project, 8 unsupported |
 | Existing targeted probes | **12/12** | Paraphrases and concept/value boundaries |
-| Additional terminology cases | **12/12** | Supported wording and six nearby missing-fact questions |
-| Live AWS smoke checks | **4 HTTP 200 responses** | Two supported responses with evidence and two fixed refusals through the ALB |
-| Temporary-stack cleanup | **18 destroyed; 0 active test infrastructure** | AWS absence checks, zero managed state and preserved existing network |
+| Additional terminology cases | **12/12** | Supported wording and nearby unsupported/missing-fact questions |
+| AWS live smoke checks | **4 HTTP 200** | Two supported evidence-bearing answers and two missing-fact refusals through the ALB |
+| AWS cleanup checks | **18 destroyed; 0 active test infrastructure** | Temporary test-stack absence checks and preservation of existing network |
 
-Exact reference coverage is a separate diagnostic: **17/24**, **7/9** and **6/6**
-answerable cases respectively. A matching filename alone can miss a required
-fact; equivalent wording can also miss an exact reference quote.
+Exact reference coverage is a separate diagnostic: **17/24**, **7/9** and **6/6** answerable cases respectively. Matching source files is not equivalent to proving that every required fact appears in the returned evidence.
 
-The fixed evaluation improved from **30/32 to 32/32** without changing its
-questions or documents. The existing probes improved from **11/12 to 12/12**
-after a narrow terminology retry. These development cases informed the changes;
-these numbers are **not independent held-out accuracy or generated-answer quality**.
-CI runs fake-model tests, not the real-model retrieval evaluations.
+The fixed evaluation improved from **30/32 to 32/32** using the same fixed questions/documents. Existing probes improved from **11/12 to 12/12** following a terminology retry. Those cases informed development and must not be presented as independent model-answer accuracy. **CI runs offline fake-model tests**, not real Bedrock retrieval evaluations.
 
-The live Private DNS response exposed a citation-format limitation: it used
-`[1]` and `[3]` while the returned evidence listed chunks `9`, `10` and `30`.
-Its HTTP/source check passed; exact inline citation alignment did not. The live
-smoke checks are not a generated-answer accuracy benchmark. See the
-[recorded limitation](docs/live-verification.md#observed-limitation).
+A live Private DNS answer included inline citations `[1]` and `[3]`, while returned evidence identified chunks `9`, `10` and `30`. The HTTP/source smoke check passed but **inline citation alignment did not**. This is an open quality limitation, not a passing citation-quality benchmark. See [observed limitation](docs/live-verification.md#observed-limitation).
 
-See the [scoring rubric and baseline](docs/retrieval-evaluation.md),
-[section retrieval comparison](docs/retrieval-improvement.md),
-[terminology results](docs/terminology-retrieval.md) and
-[latest model report](docs/terminology-main.json).
+Full methodology and artifacts: [Validation](docs/validation.md) · [Fixed evaluation](docs/retrieval-evaluation.md) · [Retrieval iteration](docs/retrieval-improvement.md) · [Terminology results](docs/terminology-retrieval.md) · [Saved latest model report](docs/terminology-main.json).
 
-## Quick start: offline tests
+## Quick start — offline tests
 
-Use **Python 3.11**, the version used for recorded validation and CI.
-Dependency installation needs package-network access. Once installed, the tests
-require no AWS account, cloud credentials, model downloads or ingested index.
+Use **Python 3.11** (the version used for CI and recorded validation). Dependency installation needs network access; the installed test suite needs **no AWS account, credentials, model downloads or existing index**.
 
 ```bash
 git clone https://github.com/AZ1600/rag-ops-assistant.git
@@ -131,36 +121,26 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q --junitxml=test-results/pytest.xml
 ```
 
-The test fixtures block network connections, AWS client construction and real
-model loading. See [test coverage and limits](docs/validation.md).
+On Windows, activate the environment using `.venv\Scripts\activate` instead. Test fixtures prevent real network, AWS-client and model-loading paths. Read [coverage and test limitations](docs/validation.md).
 
 ## Run retrieval locally
 
-The knowledge base contains four checked-in Markdown snapshots:
+The knowledge base consists of four **checked-in curated Markdown snapshots**:
 
 | Snapshot | Coverage |
 | --- | --- |
-| [Azure infrastructure lab](data/az104-infrastructure-lab.md) | Private connectivity, DNS, storage access and operational decisions |
-| [CloudOps Command Center](data/cloudops-command-center.md) | Remediation safety, decision traces and persistence |
+| [Azure infrastructure lab](data/az104-infrastructure-lab.md) | Private connectivity, DNS, storage and operational decisions |
+| [CloudOps Command Center](data/cloudops-command-center.md) | Approval boundaries, Decision Traces and persistence |
 | [Platform Engineering Observability](data/platform-engineering-observability.md) | Metrics, logs, traces, SLOs and no-traffic handling |
-| [PlatformPilot](data/platform-pilot.md) | Operational findings, roles, identity and handoff to CloudOps |
+| [PlatformPilot](data/platform-pilot.md) | Findings, roles, identity and the CloudOps handoff |
 
-These files are curated snapshots, not automatic mirrors of the source projects.
+They are *not* synchronized automatically with their source repositories.
 
-Retrieval uses `all-MiniLM-L6-v2` embeddings and
-`cross-encoder/ms-marco-MiniLM-L-6-v2` reranking. The ignored NumPy/JSON index
-contains **194 chunks** in the recorded run. Hybrid scores combine 75% semantic
-similarity and 25% keyword overlap, admitting up to 8 candidates above `0.35`.
-The literal-value guards run before reranking; up to 3 results must pass `-1.0`.
-Those cross-encoder scores are relevance logits, not probabilities.
+Retrieval uses `all-MiniLM-L6-v2` embeddings with `cross-encoder/ms-marco-MiniLM-L-6-v2` reranking. The recorded index contained **194 chunks**. Hybrid ranking weighted semantic similarity at **75%** and keyword overlap at **25%**; up to eight candidates passed the configured `0.35` hybrid threshold. Up to three reranked results must pass `-1.0`. Cross-encoder outputs are relevance logits, **not calibrated probabilities**.
 
-When the original reranker rejects every candidate, one curated alias can retry
-“quiet service/application/app” as “idle application”, including plurals. It
-reuses the same candidates and cutoff and preserves the original evidence.
-This targeted retry does not implement general query rewriting.
+If the original reranker rejects every candidate, a curated alias can retry “quiet service/application/app” as “idle application” (including plurals), with the same candidates and threshold. This is a targeted exception, not general paraphrase handling.
 
-With both models already cached, build the index and run the three evaluations
-without model downloads or Bedrock calls:
+Once the embedding/reranking models are cached, generate the index and evaluation reports without model downloads or Bedrock requests:
 
 ```bash
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 \
@@ -175,32 +155,19 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 \
   --report eval-results/terminology.json
 ```
 
-On a fresh machine, `python -m src.ingest` and `python -m src.evaluate` can download
-the embedding and reranker models. Offline flags intentionally fail if a required
-model is not cached. Neither evaluation mode invokes Bedrock. Existing section
-indexes can be reused; older chunking metadata stops with a rebuild command.
-
-Evaluation exits `0` when every source-selection/abstention case passes and `1`
-when any fails, saving the requested report in either case. Reports record case,
-corpus and index fingerprints, model/library versions and retrieval policies.
+On a fresh machine, omit the offline flags if you intentionally want the models downloaded. Offline mode will fail if the models are absent. Neither evaluation command calls Bedrock. The evaluator exits nonzero if a source-selection/abstention case fails and records case/corpus/index fingerprints, versions and policies.
 
 ## Run the full assistant with Bedrock
 
-The full agent/API additionally needs an AWS profile permitted to invoke the
-configured Bedrock model. **Agent questions make Bedrock calls and can incur
-charges**, including the initial model call before a no-evidence result.
-The source currently selects region `eu-west-2` and model
-`global.amazon.nova-2-lite-v1:0` in [the agent configuration](src/langgraph_agent.py).
+The API/agent needs AWS credentials with permission to invoke the configured Bedrock model. **Each question can incur Bedrock charges**, including the first model call before an insufficient-evidence result. The current source sets region `eu-west-2` and model `global.amazon.nova-2-lite-v1:0` in [LangGraph configuration](src/langgraph_agent.py).
 
-With the environment active and the index ready, replace `your-profile` with your
-local profile name:
+After building the index and choosing your locally configured AWS profile:
 
 ```bash
 AWS_PROFILE=your-profile python -m uvicorn src.api:app --reload
 ```
 
-The service starts MCP, discovers tools and reuses the compiled graph/connection
-across questions. Open [interactive API docs](http://127.0.0.1:8000/docs), or use:
+Open [interactive API documentation](http://127.0.0.1:8000/docs) or call:
 
 ```bash
 curl http://127.0.0.1:8000/health
@@ -209,22 +176,24 @@ curl -X POST http://127.0.0.1:8000/ask \
   -d '{"question":"Will a quiet service show zero availability when nobody is using it?"}'
 ```
 
-Illustrative response shape; answer text and scores depend on the run:
+Illustrative response shape (scores and answer text vary by run):
 
 ```json
 {
   "answer": "...",
   "sources": ["platform-engineering-observability.md"],
-  "evidence": [{
-    "chunk_number": 112,
-    "source": "platform-engineering-observability.md",
-    "hybrid_score": 0.38,
-    "rerank_score": -0.01
-  }]
+  "evidence": [
+    {
+      "chunk_number": 112,
+      "source": "platform-engineering-observability.md",
+      "hybrid_score": 0.38,
+      "rerank_score": -0.01
+    }
+  ]
 }
 ```
 
-When the search reports no evidence, the graph returns:
+When search returns no evidence, the graph responds:
 
 ```json
 {
@@ -234,113 +203,81 @@ When the search reports no evidence, the graph returns:
 }
 ```
 
-For the interactive agent, run `AWS_PROFILE=your-profile python -m src.langgraph_agent`.
-To start only the retrieval MCP server, run `python -m src.mcp_server`; its
-`search_knowledge_base` tool returns `found`, `message`, `context`, `sources` and
-`evidence`. Docker instructions are in the [AWS/container guide](docs/aws-deployment.md#run-with-docker).
+To use the interactive agent: `AWS_PROFILE=your-profile python -m src.langgraph_agent`.
+To run only the retrieval MCP server: `python -m src.mcp_server`.
+Its read-only tool returns `found`, `message`, `context`, `sources` and `evidence`.
+Container instructions: [Run with Docker](docs/aws-deployment.md#run-with-docker).
 
-## Live AWS evidence
+## Live AWS verification
 
-The following screenshots record the **27 October 2026 temporary deployment**.
-The [verification record](docs/live-verification.md) includes exact source/image
-identifiers, captured responses, the model/tool trace and cleanup checks.
+On **27 October 2026**, merged revision `6956bc2` was deployed into a **dedicated temporary Terraform stack**. Four live `/ask` requests returned HTTP 200: two included supported answers with evidence and two returned the fixed missing-fact refusal. CloudWatch recorded four MCP searches and six Bedrock-node calls. The test endpoint was removed after verification.
 
-### Healthy ECS task and load-balancer target
+The [verification record](docs/live-verification.md) includes captured responses, source/image identifiers, model/tool trace and the cleanup checks.
 
-![ARM64 task, healthy ALB target, verified image and HTTP 200](docs/images/aws-live-ready.png)
+### Healthy ECS task and ALB target
 
-### Supported question with retrieved evidence
+![Healthy ARM64 task, load-balancer target and verified image](docs/images/aws-live-ready.png)
 
-The quiet-service question returned the documented no-traffic behaviour and cited
-chunk `112`. The exact question reached the MCP tool unchanged.
+### Supported question with evidence
 
-![Live quiet-service answer with source and chunk evidence](docs/images/aws-live-supported.png)
+The quiet-service example returned documented no-traffic behaviour, with evidence pointing to chunk `112`.
+
+![Live response with source and chunk evidence](docs/images/aws-live-supported.png)
 
 ### Missing fact refused
 
-The request for an undocumented production tenant ID returned the fixed refusal
-with empty sources and evidence. A missing retention duration was also refused.
+Undocumented production tenant-ID and retention-duration questions returned the fixed insufficient-evidence response.
 
-![Live tenant-ID question refused without source evidence](docs/images/aws-live-refusal.png)
+![Live unsupported production tenant-ID request refused](docs/images/aws-live-refusal.png)
 
 ### Cleanup verified
 
-At `11:16 UTC`, the test had zero managed resources, no running/pending tasks,
-no load balancer, repository, log group, test security groups or network
-interfaces. Existing VPC/subnets were preserved. One inactive task-definition
-registration remained as deregistered metadata. [Cleanup record](docs/live-evidence/cleanup-summary.json).
+At **11:16 UTC** the temporary deployment reported zero managed resources and no running/pending tasks, load balancer, test repository, log group, security groups or network interfaces. Existing VPC/subnets were preserved. One task-definition registration remained as inactive/deregistered metadata. See the [cleanup record](docs/live-evidence/cleanup-summary.json).
 
-![Recorded cleanup verification with no active test infrastructure](docs/images/aws-live-cleanup.png)
+![Cleanup evidence](docs/images/aws-live-cleanup.png)
 
-The earlier API demo, MCP flow, ARM64 image optimization, ECR scan, Terraform
-reconciliation and automated deployment are preserved in the
-[AWS deployment guide](docs/aws-deployment.md).
+Earlier ECR scanning, Terraform reconciliation, MCP integration and automated delivery evidence remain in the [AWS deployment guide](docs/aws-deployment.md).
 
 ## AWS deployment and CI/CD
 
-The previously validated deployment used **Linux ARM64 Fargate, 1 vCPU and 2 GB
-memory**, behind an ALB restricted to the owner's `/32` address. The task accepted
-port `8000` from the ALB security group. ECR held the image and CloudWatch collected
-container logs. Terraform managed the long-lived infrastructure; GitHub Actions
-managed application image and task-definition revisions.
+The earlier validated AWS design used **Linux ARM64 ECS Fargate (1 vCPU, 2 GB RAM)** behind an ALB restricted to the owner's `/32` IP address. The task accepted traffic on port `8000` from the ALB security group. ECR stored the image, CloudWatch collected logs, Terraform managed infrastructure and GitHub Actions delivered image/task revisions.
 
-GitHub Actions runs the offline suite on pull requests and pushes to `main`,
-with read-only repository permissions and a JUnit artifact. Automatic deployment
-requires a successful `Tests` run on `main`, deployment-relevant changes and
-`ENABLE_AUTOMATIC_ECS_DEPLOY` set to exactly `true`. Leaving it unset or `false`
-keeps automatic deployment disabled. Documentation-only changes are outside the
-workflow's automatic deployment file filter.
+[Tests workflow](.github/workflows/tests.yml): runs the deterministic suite for pull requests and `main` pushes using read-only repository permissions and uploads a JUnit artifact.
 
-A manual **Run workflow** on `main` is an explicit deployment request and does
-not wait for a new test run. Check the selected revision's Tests first. Deployment
-gating does not stop running AWS resources or determine their current costs.
+[Deployment workflow](.github/workflows/deploy.yml): automatic ECS deployment requires a successful `Tests` run on `main`, deployment-relevant changes and `ENABLE_AUTOMATIC_ECS_DEPLOY=true`. Documentation-only changes are outside the automatic deployment filter. The explicit manual **Run workflow** action on `main` requests deployment without waiting for a new test run; verify that revision's test status first.
 
-Read the [AWS deployment guide and recorded evidence](docs/aws-deployment.md) for
-architecture, Docker, IAM/OIDC, networking, Terraform, deployment stages, earlier
-image scan results and service/ALB screenshots.
+CI settings do not guarantee that infrastructure is shut down or prevent cloud costs. Consult the [deployment guide](docs/aws-deployment.md) for Docker, IAM/OIDC, networking, Terraform, deploy steps and historical scan evidence.
 
 ## Scope and limitations
 
-- **Evidence scope:** the corpus is four project snapshots. It does not contain
-  live production IDs, current queue counts or a complete operations knowledge base.
-- **Retrieval:** the curated alias and literal-value guards recognize limited
-  wording/formats. A value's presence does not establish that it belongs to the
-  requested production system. Unseen paraphrases can still fail.
-- **Generation:** local evaluations measure retrieval and control flow. Four
-  live examples do not establish answer accuracy; the Private DNS inline citation
-  mismatch is recorded. Prompt-injection resistance was not measured.
-- **API exposure:** the API has no application authentication, authorization or
-  rate limiting. The documented owner-restricted ALB was a personal deployment.
-- **Deployment evidence:** the latest temporary stack was removed after its
-  checks. Earlier scan results and automated delivery evidence are historical;
-  this manual session did not rerun GitHub Actions deployment or image scanning.
+- **Knowledge scope:** Only four curated documentation snapshots. No live cloud state, current incidents, production identifiers or complete operational inventory.
+- **Retrieval limits:** Targeted literal-value and terminology guards can miss unseen forms or incorrectly associate an existing fact with a requested system.
+- **Answer quality:** Retrieval/flow evaluations are not a generated-answer accuracy benchmark. One observed live answer had mismatched inline citation numbering; prompt-injection resistance has not been measured.
+- **API security:** No application authentication, authorization or rate limiting. The owner-restricted ALB was a personal validation deployment, not a public production security model.
+- **Operations evidence:** The most recent temporary AWS stack was removed. Earlier image scans and automated deployment records are historical; the latest manual session did not rerun those workflows.
+- **Cost:** Running Bedrock and AWS resources can incur charges; do not deploy without reviewing IAM, exposure and budget controls.
 
-Possible next work includes inline citation validation, independent evaluation
-cases, generated-answer assessment, API access controls, prompt-injection testing, retrieval latency
-measurement, Terraform PR validation and production deployment protections.
+**Possible next improvements:** Verify inline citation numbers against evidence, add independent held-out question sets and generated-answer review, introduce API access controls, test prompt-injection robustness, measure retrieval latency, validate Terraform changes in PRs, and add production-grade release protections.
 
 ## Repository map
 
 ```text
-src/                Retrieval, ingestion, MCP, LangGraph and FastAPI
-data/               Four documentation snapshots
+src/                Ingestion, retrieval, MCP, LangGraph and FastAPI
+data/               Four curated Markdown documentation snapshots
 evals/              Fixed cases, targeted probes and terminology cases
-tests/              Deterministic offline regression suite
-docs/               Evaluation reports, explanations and deployment evidence
+tests/              Deterministic offline regression tests
+docs/               Evaluation reports and AWS deployment evidence
 deploy/ecs/         Example task definitions and IAM policies
-infra/terraform/    AWS infrastructure and GitHub OIDC configuration
-.github/workflows/  Tests and opt-in ECS deployment
+infra/terraform/    Terraform resources and GitHub OIDC configuration
+.github/workflows/  Offline testing and opt-in ECS deployment
 ```
 
-Pinned application dependencies are in [requirements.txt](requirements.txt);
-test dependencies are in [requirements-dev.txt](requirements-dev.txt).
-The Dockerfile installs CPU-only PyTorch separately. Generated `index/`, local
-`eval-results/`, test artifacts, credentials and Terraform state are not intended
-as source-controlled project files.
+Application dependencies: [requirements.txt](requirements.txt) · Test dependencies: [requirements-dev.txt](requirements-dev.txt). The Dockerfile installs CPU-only PyTorch separately. Generated indexes, local evaluation output, test results, credentials and Terraform state are not intended for version control.
 
 ## Author
 
 **Olawale Azeez**
 
-AWS Certified Developer – Associate · AWS Certified Solutions Architect – Associate ·
-AWS Certified Cloud Practitioner
+AWS Certified Developer – Associate · AWS Certified Solutions Architect – Associate · AWS Certified Cloud Practitioner
+
+[GitHub profile](https://github.com/AZ1600) · [Engineering portfolio](https://az1600.github.io/)
