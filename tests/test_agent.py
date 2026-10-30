@@ -197,3 +197,30 @@ def test_mcp_result_conversion(result, expected):
 def test_mcp_error_flag_takes_precedence_over_structured_content():
     result = agent.mcp_result_to_payload(mcp_result({"found": True}, text="failed", error=True))
     assert result == {"error": "failed"}
+
+
+def test_start_cleans_up_when_tool_discovery_fails(service_factory):
+    service, _, mcp = service_factory([], [])
+
+    async def failing_list_tools():
+        mcp.discovered += 1
+        raise RuntimeError("MCP discovery failed")
+
+    mcp.list_tools = failing_list_tools
+
+    async def scenario():
+        with pytest.raises(
+            RuntimeError,
+            match="MCP discovery failed",
+        ):
+            await service.start()
+
+    asyncio.run(scenario())
+
+    assert mcp.entered == 1
+    assert mcp.closed == 1
+    assert mcp.discovered == 1
+
+    assert service.exit_stack is None
+    assert service.mcp_client is None
+    assert service.graph is None

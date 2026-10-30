@@ -145,11 +145,14 @@ class LangGraphAgentService:
         self.known_tool_names = set()
         self.graph = None
 
+
     async def start(self):
         """
         Start MCP, discover tools, and compile LangGraph.
-        """
 
+        Clean up the MCP connection if initialization fails,
+        so the service can be started again safely.
+        """
         if self.graph is not None:
             return
 
@@ -157,36 +160,37 @@ class LangGraphAgentService:
 
         self.exit_stack = AsyncExitStack()
 
-        self.mcp_client = await self.exit_stack.enter_async_context(
-            Client(self.server_params)
-        )
+        try:
+            self.mcp_client = await self.exit_stack.enter_async_context(
+                Client(self.server_params)
+            )
 
-        print("Connected to MCP server.")
+            print("Connected to MCP server.")
 
-        tool_response = await self.mcp_client.list_tools()
+            tool_response = await self.mcp_client.list_tools()
+            mcp_tools = tool_response.tools
 
-        mcp_tools = tool_response.tools
+            print(
+                "MCP tools discovered:",
+                [tool.name for tool in mcp_tools],
+            )
 
-        print(
-            "MCP tools discovered:",
-            [
-                tool.name
-                for tool in mcp_tools
-            ],
-        )
+            self.bedrock_tools = convert_mcp_tools_to_bedrock(
+                mcp_tools
+            )
 
-        self.bedrock_tools = convert_mcp_tools_to_bedrock(
-            mcp_tools
-        )
+            self.known_tool_names = {
+                tool.name for tool in mcp_tools
+            }
 
-        self.known_tool_names = {
-            tool.name
-            for tool in mcp_tools
-        }
+            self.graph = self._build_graph()
 
-        self.graph = self._build_graph()
+            print("LangGraph agent service ready.")
 
-        print("LangGraph agent service ready.")
+        except BaseException:
+            await self.close()
+            raise
+
 
     async def close(self):
         """
