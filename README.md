@@ -106,6 +106,8 @@ The fixed evaluation improved from **30/32 to 32/32** using the same fixed quest
 
 A live Private DNS answer included inline citations `[1]` and `[3]`, while returned evidence identified chunks `9`, `10` and `30`. The HTTP/source smoke check passed but **inline citation alignment did not**. This is an open quality limitation, not a passing citation-quality benchmark. See [observed limitation](docs/live-verification.md#observed-limitation).
 
+**Citation-alignment follow-up:** The application now checks explicit numeric inline references (`[N]`, `[N, M]`, `[Chunk N]`) against the retrieval tool's actual `chunk_number` values. It substitutes a fixed warning on mismatch and retains the evidence metadata for inspection. This is covered by offline regression tests; it has **not** been reverified with a live Bedrock/AWS deployment. The guard does not establish factual support for cited claims, require citations for every response, or force the model to call retrieval.
+
 Full methodology and artifacts: [Validation](docs/validation.md) · [Fixed evaluation](docs/retrieval-evaluation.md) · [Retrieval iteration](docs/retrieval-improvement.md) · [Terminology results](docs/terminology-retrieval.md) · [Saved latest model report](docs/terminology-main.json).
 
 ## Quick start — offline tests
@@ -257,7 +259,7 @@ CI settings do not guarantee that infrastructure is shut down or prevent cloud c
 - **Operations evidence:** The most recent temporary AWS stack was removed. Earlier image scans and automated deployment records are historical; the latest manual session did not rerun those workflows.
 - **Cost:** Running Bedrock and AWS resources can incur charges; do not deploy without reviewing IAM, exposure and budget controls.
 
-**Possible next improvements:** Verify inline citation numbers against evidence, add independent held-out question sets and generated-answer review, introduce API access controls, test prompt-injection robustness, measure retrieval latency, validate Terraform changes in PRs, and add production-grade release protections.
+**Possible next improvements:** Enforce retrieval for documentation questions, expand citation syntax handling and claim-level support checks, add independent held-out question sets and generated-answer review, introduce API access controls, test prompt-injection robustness, measure retrieval latency, validate Terraform changes in PRs, and add production-grade release protections.
 
 ## Repository map
 

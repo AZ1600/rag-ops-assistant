@@ -224,3 +224,34 @@ def test_start_cleans_up_when_tool_discovery_fails(service_factory):
     assert service.exit_stack is None
     assert service.mcp_client is None
     assert service.graph is None
+
+
+
+def test_mismatched_retrieval_citations_are_not_returned_to_api(service_factory):
+    evidence = [{
+        "chunk_number": 9,
+        "source": "azure.md",
+        "rerank_score": 3.0,
+        "hybrid_score": 0.8,
+    }]
+    service, bedrock, mcp = service_factory(
+        [tool_request(), answer("Private DNS is configured using [1].")],
+        [mcp_result({"found": True, "sources": ["azure.md"], "evidence": evidence})],
+    )
+
+    async def scenario():
+        await service.start()
+        try:
+            return await service.ask("private dns")
+        finally:
+            await service.close()
+
+    result = asyncio.run(scenario())
+    assert result["answer"] == (
+        "The generated answer contains citation labels that do not match "
+        "the retrieved evidence. Please retry or inspect the returned sources."
+    )
+    assert result["sources"] == ["azure.md"]
+    assert result["evidence"] == evidence
+    assert len(bedrock.calls) == 2
+    assert len(mcp.calls) == 1

@@ -8,6 +8,7 @@ from typing import TypedDict
 import boto3
 from langgraph.graph import END, START, StateGraph
 from mcp import Client, StdioServerParameters
+from src.citation_guard import CITATION_MISMATCH_RESPONSE, citations_match_evidence
 
 
 BEDROCK_REGION = "eu-west-2"
@@ -28,7 +29,8 @@ Rules:
 - For documentation questions, answer only from evidence returned
   by the knowledge-base tool.
 - Do not invent implementation details.
-- Cite important claims using chunk numbers when available.
+- Cite important claims using exact retrieved chunk IDs, e.g. [Chunk 9].
+- Do not renumber chunk IDs as ordinal citations.
 - If the knowledge-base tool reports that no relevant evidence
   was found, do not invent an answer.
 """
@@ -553,8 +555,16 @@ class LangGraphAgentService:
             initial_state
         )
 
+        answer_text = final_state["final_answer"]
+        # Do not publish mismatched references such as [1] if the MCP tool
+        # actually returned chunk IDs 9, 10 and 30.
+        if final_state["evidence"] and not citations_match_evidence(
+            answer_text, final_state["evidence"]
+        ):
+            answer_text = CITATION_MISMATCH_RESPONSE
+
         return {
-            "answer": final_state["final_answer"],
+            "answer": answer_text,
             "sources": final_state["sources"],
             "evidence": final_state["evidence"],
         }
